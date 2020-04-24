@@ -3,8 +3,8 @@
 //                                                               |\_/|   |  //
 //                                                               |   |  /|  //
 //    .----------------------------------------------------------------' |  //
-//   /  .-.  /*!\author            Tristan Bouchard                    */|  //
-//  |  /   \ /*!\file              event_class.h                       */|  //
+//   /  .-.  /*!\author         Tristan Bouchard                       */|  //
+//  |  /   \ /*!\file              Event.hpp                           */|  //
 //  | |\_.  |/*!\date              8/19/2019                           */|  //
 //  |\|  | /|/*!                                                       */|  //
 //  | `---' |/*!\brief This file contains the implementation for the   */|  //
@@ -42,6 +42,25 @@ using EVENT_HANDLE = uint64_t;
 
 //! For type checking
 #define VERIFY_TYPE noexcept
+
+#define PERMUTE_PMF_CV_REF_NOEXCEPT(MACRO, CV_REF_OPT) \
+      MACRO(CV_REF_OPT); \
+      MACRO(CV_REF_OPT noexcept)
+
+#define PERMUTE_PMF_CV_REF(MACRO, CV_OPT) \
+      PERMUTE_PMF_CV_REF_NOEXCEPT(MACRO, CV_OPT); \
+      PERMUTE_PMF_CV_REF_NOEXCEPT(MACRO, CV_OPT &); \
+      PERMUTE_PMF_CV_REF_NOEXCEPT(MACRO, CV_OPT &&)
+
+#define PERMUTE_PMF_CV(MACRO) \
+      PERMUTE_PMF_CV_REF(MACRO, ); \
+      PERMUTE_PMF_CV_REF(MACRO, const); \
+      PERMUTE_PMF_CV_REF(MACRO, volatile); \
+      PERMUTE_PMF_CV_REF(MACRO, const volatile)
+
+#define PERMUTE_PMF(MACRO) \
+      PERMUTE_PMF_CV(MACRO); \
+      PERMUTE_PMF_CV(MACRO##_ELLIPSIS)
 
 // Unhooks should allow both event handles as well as the pointers itself, but not both at the same time
 // Fix issue with calling class pointer as normal function
@@ -222,11 +241,21 @@ class Event
       : function(GetMethod(class_ptr, func_ptr)), handle(handle)
       {}
 
-      template<typename C, typename R, typename ...Args>
-      static auto GetMethod(C *class_ptr, R(C::*func_ptr)(Args...))
-      {
-        return [class_ptr, func_ptr](Args... args) { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); };
-      }
+      #define DEF_GET_METHOD(CV_REF_NOEXCEPT_OPT) \
+        template<typename C, typename R, typename ...Args> \
+        auto GetMethod(C *class_ptr, R (C::*func_ptr)(Args...) CV_REF_NOEXCEPT_OPT) \
+        { \
+          return [class_ptr, func_ptr] (Args... args) mutable { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); }; \
+        }
+
+      #define DEF_GET_METHOD_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
+        template<typename C, typename R, typename ...Args> \
+        auto GetMethod(C *class_ptr, R (C::*func_ptr)(Args..., ...) CV_REF_NOEXCEPT_OPT) \
+        { \
+          return [class_ptr, func_ptr](Args... args) mutable { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); }; \
+        }
+
+      PERMUTE_PMF(DEF_GET_METHOD);
 
       bool operator==(const Call& other) const
       {
@@ -286,25 +315,6 @@ class Event
       { \
           static constexpr bool value = true; \
       }
-
-    #define PERMUTE_PMF_CV_REF_NOEXCEPT(MACRO, CV_REF_OPT) \
-      MACRO(CV_REF_OPT); \
-      MACRO(CV_REF_OPT noexcept)
-
-    #define PERMUTE_PMF_CV_REF(MACRO, CV_OPT) \
-      PERMUTE_PMF_CV_REF_NOEXCEPT(MACRO, CV_OPT); \
-      PERMUTE_PMF_CV_REF_NOEXCEPT(MACRO, CV_OPT &); \
-      PERMUTE_PMF_CV_REF_NOEXCEPT(MACRO, CV_OPT &&)
-
-    #define PERMUTE_PMF_CV(MACRO) \
-      PERMUTE_PMF_CV_REF(MACRO, ); \
-      PERMUTE_PMF_CV_REF(MACRO, const); \
-      PERMUTE_PMF_CV_REF(MACRO, volatile); \
-      PERMUTE_PMF_CV_REF(MACRO, const volatile)
-
-    #define PERMUTE_PMF(MACRO) \
-      PERMUTE_PMF_CV(MACRO); \
-      PERMUTE_PMF_CV(MACRO##_ELLIPSIS)
 
     PERMUTE_PMF(DEF_IS_MEMBER_FUNCTION_OF);
 
