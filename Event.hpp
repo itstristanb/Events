@@ -18,7 +18,6 @@
 //    `---'                                                                 //
 #ifndef EVENTS_HPP
 #define EVENTS_HPP
-
 #include <unordered_set> // unordered_set
 #include <functional>    // function
 #include <assert.h>      // assert
@@ -42,19 +41,20 @@
  */
 using EVENT_HANDLE = uint64_t;
 
-// if function |0|&function|
-// if member function |&class|&member
-// if function cluster |?|&function
-// if member cluster |?|&member
-//! Get the cluster
+// ! Mask for getting the cluster
+#define EVENT_CLUSTER_MASK 0b11111111111111111111111111111111'00000000000000000000000000000000
 
-#define GET_CLUSTER(handle) (EVENT_HANDLE(handle) >> sizeof(uint32_t))
+//! Mask for getting the id
+#define EVENT_ID_MASK 0b00000000000000000000000000000000'11111111111111111111111111111111
 
-//! Get the id
-#define GET_ID(handle) ((EVENT_HANDLE(handle) << sizeof(uint32_t)) >> sizeof(uint32_t))
+//! Gets the cluster from a handle
+#define GET_CLUSTER(handle) (EVENT_HANDLE(handle) & EVENT_CLUSTER_MASK)
+
+//! Get the id from the handle
+#define GET_ID(handle) (EVENT_HANDLE(handle) & EVENT_ID_MASK)
 
 //! Constructs a handle with the last 4 bytes has the cluster and the first 4 be the ID
-#define GET_HANDLE(cluster, id) ((EVENT_HANDLE(cluster) << sizeof(uint32_t)) | GET_ID(id))
+#define GET_HANDLE(cluster, id) ((EVENT_HANDLE(cluster) << sizeof(uint32_t) * 8) | GET_ID(id))
 
 //! For type checking with a cleaner syntax
 #define VERIFY_TYPE noexcept
@@ -81,8 +81,6 @@ using EVENT_HANDLE = uint64_t;
 #define PERMUTE_PMF(MACRO) \
       PERMUTE_PMF_CV(MACRO); \
       PERMUTE_PMF_CV(MACRO##_ELLIPSIS)
-
-
 
 /*!
  * \brief
@@ -369,7 +367,9 @@ class Event
      */
     ~Event()
     {
-      m_mutex.erase(this);
+      auto it = m_mutex.find(this);
+      if (it != m_mutex.end())
+        m_mutex.erase(it);
     }
   private:
     struct USet; struct CallHash; // forward declare
@@ -499,7 +499,7 @@ class Event
     void RemoveCluster(EVENT_HANDLE cluster)
     {
       for (auto it = callList_.begin(); it != callList_.end();)
-        if (cluster == GET_CLUSTER(it.handle))
+        if (cluster == GET_CLUSTER(it->handle))
           it = callList_.erase(it);
         else
           ++it;
@@ -635,6 +635,21 @@ class Event
       bool operator==(const Call& other) const
       {
         return handle == other.handle;
+      }
+
+      /*!
+       * \brief
+       *      Assignment operator that checks if the handles are the same
+       *
+       * \param handle
+       *      Handle to compare with this handle
+       *
+       * \return
+       *      Returns true if the handles are the same
+       */
+      bool operator==(EVENT_HANDLE handle) const
+      {
+        return this->handle == handle;
       }
 
       /*!

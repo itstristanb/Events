@@ -21,12 +21,27 @@ void function(int a)
 
 int main()
 {
-  Event<void(int)> event;
+  // uncomment for keeping order
+  Event<void(int) /*, true */> event;
   Struct aStruct;
+
+  // Hook them
   event.Hook(Struct::static_function);
   event.Hook(aStruct, &Struct::member_function);
   event.Hook(function);
-  event.Hook([](int a){ std::cout << "Hello from lambda = " << a << std::endl; });
+  EVENT_HANDLE lamda_handle = event.Hook([](int a){ std::cout << "Hello from lambda = " << a << std::endl; });
+
+  // Say hello
   event.Invoke(1);
+
+  // Unhook them
+  event.Unhook(Struct::static_function);
+  event.UnhookClass(aStruct); // or event.Unhook(aStruct, &Struct::member_function);
+  event.Unhook(function);
+  event.Unhook(lamda_handle);
+
+  // Say nothing
+  event.Invoke(1);
+
   return 0;
 }
