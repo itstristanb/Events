@@ -29,7 +29,7 @@
 [![Standard](https://img.shields.io/badge/c%2B%2B-17-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B17)
 
 ## Description:
-This repository contains a templated c++17 (and up) Event system that allows for clients to attach callbacks to a host 
+This repository contains a thread-safe, templated c++17 (and up) Event system that allows for clients to attach callbacks to a host 
 which then can be invoked at any time. Could also be understood as a 'act, react' pattern.
 
 ## Why you should use events:
@@ -75,11 +75,4 @@ Create a wrapper function for the event. <br><br> Macro example:
       // ...
       return 0;
     }
-```
-
-##### When I invoke my functions they don't get called in the order I hooked them? <br>
-You must set the "KEEP_ORDER" template variable to true. <br> <br> Keeping order example: 
-```c++ 
-// When invoked, functions will be called in same order as they were hooked
-Event<void(void), true> event;
 ```

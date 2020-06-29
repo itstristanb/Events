@@ -86,31 +86,180 @@ using EVENT_HANDLE = uint64_t;
       PERMUTE_PMF_CV(MACRO); \
       PERMUTE_PMF_CV(MACRO##_ELLIPSIS)
 
-struct Call; // forward declare callback data type
+/*!
+ * \brief
+ *      Callback wrapper
+ */
+template<typename Signature>
+struct Call
+{
+    /*!
+     * \brief
+     *      Default Constructor
+     */
+    Call()
+            : function([](){}), handle(EVENT_HANDLE(0))
+    {}
+
+    /*!
+     * \brief
+     *      Constructor for non-member function
+     *
+     * \tparam F
+     *      Type of function
+     *
+     * \param func_ptr
+     *      Pointer to function to hook
+     *
+     * \param handle
+     *      Handle corresponding to the function 'func_ptr'
+     */
+    template<typename F>
+    Call(F func_ptr, EVENT_HANDLE handle)
+            : function(func_ptr), handle(handle)
+    {}
+
+    /*!
+     * \brief
+     *      Constructor for non-static member function
+     *
+     * \tparam C
+     *      Type of class
+     *
+     * \tparam F
+     *      Type of function
+     *
+     * \param class_ptr
+     *      Pointer to class
+     *
+     * \param func_ptr
+     *      Pointer to member function contained within class C
+     *
+     * \param handle
+     *      Handle corresponding to member function
+     */
+    template<typename C, typename F>
+    Call(C class_ptr, F func_ptr, EVENT_HANDLE handle)
+            : function(GetMethod(class_ptr, func_ptr)), handle(handle)
+    {}
+
+    /*!
+     * \brief
+     *      Overload for all non-ellipsis member functions
+     *
+     */
+#define DEF_GET_METHOD(CV_REF_NOEXCEPT_OPT) \
+        template<typename C, typename R, typename ...Args> \
+        auto GetMethod(C *class_ptr, R(C::*func_ptr)(Args...) CV_REF_NOEXCEPT_OPT) \
+        { \
+          return [class_ptr, func_ptr] (Args... args) mutable { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); }; \
+        }
+
+    /*!
+     * \brief
+     *      Overload for all ellipsis member functions
+     */
+#define DEF_GET_METHOD_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
+        template<typename C, typename R, typename ...Args> \
+        auto GetMethod(C *class_ptr, R(C::*func_ptr)(Args..., ...) CV_REF_NOEXCEPT_OPT) \
+        { \
+          return [class_ptr, func_ptr](Args... args) mutable { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); }; \
+        }
+
+    /*!
+     * \brief
+     *      Generates all overloaded member functions for GetMethod
+     *
+     * \tparam C
+     *      Type of class
+     *
+     * \tparam R
+     *      Return type
+     *
+     * \tparam Args
+     *      Argument list
+     *
+     * \param class_ptr
+     *      Pointer to class
+     *
+     * \param func_ptr
+     *      Pointer to non-static member function contained within class C
+     *
+     * \return
+     *      Returns a lambda that when called, calls the non-static member function
+     *      'func_ptr' contained within class 'class_ptr'
+     */
+    PERMUTE_PMF(DEF_GET_METHOD);
+
+    /*!
+     * \brief
+     *      Assignment operator that checks if the handles are the same
+     *
+     * \param other
+     *      Other call to check the handle of
+     *
+     * \return
+     *      Returns true if the handles are the same
+     */
+    bool operator==(const Call<Signature>& other) const
+    {
+        return handle == other.handle;
+    }
+
+    /*!
+     * \brief
+     *      Assignment operator that checks if the handles are the same
+     *
+     * \param handle
+     *      Handle to compare with this handle
+     *
+     * \return
+     *      Returns true if the handles are the same
+     */
+    bool operator==(EVENT_HANDLE eventHandle) const
+    {
+        return handle == eventHandle;
+    }
+
+    /*!
+     * \brief
+     *      Implicit conversion operator
+     *
+     * \return
+     *      Returns handle of call
+     */
+    explicit operator EVENT_HANDLE()
+    {
+        return handle;
+    }
+
+    std::function<Signature> function; //!< Function to call
+    EVENT_HANDLE handle;                //!< Handle corresponding to the function
+};
 
 /*!
  * \brief
  *      Templated event system that holds clients callbacks to be
  *      invoked on elsewhere
  *
- * \tparam _function_signature
+ * \tparam FunctionSignature
  *      Function signature of the callbacks to hold
  *      NOTE: All callbacks must be of this type
  *
- * \tparam _keep_order
+ * \tparam KeepOrder
  *      Tells the system to invoke callbacks in the same order as they
  *      were hooked.
  *
- * \tparam _call_alloc
+ * \tparam Allocator
  *      Allocator for the call list. Must take struct 'Call'
  */
-template<typename _function_signature, bool _keep_order = false, typename _alloc = std::allocator<Call>>
+template<typename FunctionSignature, bool KeepOrder = true, typename Allocator = std::allocator<Call<FunctionSignature>>>
 class Event
 {
   public:
-    using _Signature = _function_signature;      //!< Function Signature
-    using _Allocator = _alloc;                   //!< Event allocator
-    static constexpr bool Ordered = _keep_order; //!< State of ordering
+    using _Signature = FunctionSignature;      //!< Function Signature
+    using _Allocator = Allocator;              //!< Event allocator
+    static constexpr bool Ordered = KeepOrder; //!< State of ordering
 
     /*!
      * \brief
@@ -132,7 +281,7 @@ class Event
     VERIFY_TYPE(class_member_exclusion<F>() && is_same_arg_list<F>())
     {
       EVENT_HANDLE handle = GET_HANDLE(POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr));
-      callList_.emplace_back(Call(func_ptr, handle));
+      callList_.emplace_back(Call<_Signature>(func_ptr, handle));
       return handle;
     }
 
@@ -160,7 +309,7 @@ class Event
     VERIFY_TYPE(class_member_inclusion<C, F>() && is_same_arg_list<F>())
     {
       EVENT_HANDLE handle = GET_HANDLE(POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr));
-      callList_.emplace_back(Call(&class_ref, func_ptr, handle));
+      callList_.emplace_back(Call<_Signature>(&class_ref, func_ptr, handle));
       return handle;
     }
 
@@ -181,7 +330,7 @@ class Event
     [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fs&&... func_ptrs)
     VERIFY_TYPE(class_member_exclusion<Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>() && is_same_arg_list<Fs...>())
     {
-      PACK_EXPAND(callList_.emplace_back, Call(func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
+      PACK_EXPAND(callList_.emplace_back, Call<_Signature>(func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
       return GET_HANDLE(++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
@@ -208,7 +357,7 @@ class Event
     [[nodiscard]] EVENT_HANDLE HookMethodCluster(C &class_ref, Fs... func_ptrs)
     VERIFY_TYPE(class_member_inclusion<C, Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>() && is_same_arg_list<Fs...>())
     {
-      PACK_EXPAND(callList_.emplace_back, Call(&class_ref, func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
+      PACK_EXPAND(callList_.emplace_back, Call<_Signature>(&class_ref, func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
       return GET_HANDLE(++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
@@ -368,9 +517,19 @@ class Event
      * \return
      *      Returns number of callbacks hooked to this event
      */
-    size_t CallListSize() const
+    [[nodiscard]] size_t CallListSize() const
     {
         return callList_.size();
+    }
+
+    /*!
+     * \brief
+     *      Clears the call list
+     */
+    void Clear()
+    {
+        callList_.clear();
+        clusterHandle_ = 0;
     }
 
     /*!
@@ -387,7 +546,7 @@ class Event
     struct USet; struct CallHash; // forward declare
 
     //! Type of callback list
-    typedef typename std::conditional<Ordered, std::vector<Call, _Allocator>, USet>::type CallListType;
+    typedef typename std::conditional<Ordered, std::vector<Call<_Signature>, _Allocator>, USet>::type CallListType;
 
     //! Static map of mutex to handle thread safety for invoking
     static inline std::map<Event *, std::mutex> m_mutex;
@@ -532,156 +691,6 @@ class Event
 
     /*!
      * \brief
-     *      Callback wrapper
-     */
-    struct Call
-    {
-      /*!
-       * \brief
-       *      Default Constructor
-       */
-      Call()
-      : function([](){}), handle(EVENT_HANDLE(0))
-      {}
-
-      /*!
-       * \brief
-       *      Constructor for non-member function
-       *
-       * \tparam F
-       *      Type of function
-       *
-       * \param func_ptr
-       *      Pointer to function to hook
-       *
-       * \param handle
-       *      Handle corresponding to the function 'func_ptr'
-       */
-      template<typename F>
-      Call(F func_ptr, EVENT_HANDLE handle)
-      : function(func_ptr), handle(handle)
-      {}
-
-      /*!
-       * \brief
-       *      Constructor for non-static member function
-       *
-       * \tparam C
-       *      Type of class
-       *
-       * \tparam F
-       *      Type of function
-       *
-       * \param class_ptr
-       *      Pointer to class
-       *
-       * \param func_ptr
-       *      Pointer to member function contained within class C
-       *
-       * \param handle
-       *      Handle corresponding to member function
-       */
-      template<typename C, typename F>
-      Call(C class_ptr, F func_ptr, EVENT_HANDLE handle)
-      : function(GetMethod(class_ptr, func_ptr)), handle(handle)
-      {}
-
-      /*!
-       * \brief
-       *      Overload for all non-ellipsis member functions
-       *
-       */
-      #define DEF_GET_METHOD(CV_REF_NOEXCEPT_OPT) \
-        template<typename C, typename R, typename ...Args> \
-        auto GetMethod(C *class_ptr, R(C::*func_ptr)(Args...) CV_REF_NOEXCEPT_OPT) \
-        { \
-          return [class_ptr, func_ptr] (Args... args) mutable { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); }; \
-        }
-
-      /*!
-       * \brief
-       *      Overload for all ellipsis member functions
-       */
-      #define DEF_GET_METHOD_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
-        template<typename C, typename R, typename ...Args> \
-        auto GetMethod(C *class_ptr, R(C::*func_ptr)(Args..., ...) CV_REF_NOEXCEPT_OPT) \
-        { \
-          return [class_ptr, func_ptr](Args... args) mutable { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); }; \
-        }
-
-      /*!
-       * \brief
-       *      Generates all overloaded member functions for GetMethod
-       *
-       * \tparam C
-       *      Type of class
-       *
-       * \tparam R
-       *      Return type
-       *
-       * \tparam Args
-       *      Argument list
-       *
-       * \param class_ptr
-       *      Pointer to class
-       *
-       * \param func_ptr
-       *      Pointer to non-static member function contained within class C
-       *
-       * \return
-       *      Returns a lambda that when called, calls the non-static member function
-       *      'func_ptr' contained within class 'class_ptr'
-       */
-      PERMUTE_PMF(DEF_GET_METHOD);
-
-      /*!
-       * \brief
-       *      Assignment operator that checks if the handles are the same
-       *
-       * \param other
-       *      Other call to check the handle of
-       *
-       * \return
-       *      Returns true if the handles are the same
-       */
-      bool operator==(const Call& other) const
-      {
-        return handle == other.handle;
-      }
-
-      /*!
-       * \brief
-       *      Assignment operator that checks if the handles are the same
-       *
-       * \param handle
-       *      Handle to compare with this handle
-       *
-       * \return
-       *      Returns true if the handles are the same
-       */
-      bool operator==(EVENT_HANDLE eventHandle) const
-      {
-        return handle == eventHandle;
-      }
-
-      /*!
-       * \brief
-       *      Implicit conversion operator
-       *
-       * \return
-       *      Returns handle of call
-       */
-      explicit operator EVENT_HANDLE()
-      {
-        return handle;
-      }
-
-      std::function<_Signature> function; //!< Function to call
-      EVENT_HANDLE handle;                //!< Handle corresponding to the function
-    };
-
-    /*!
-     * \brief
      *      Hash functor used in unordered_set
      */
     struct CallHash
@@ -696,7 +705,7 @@ class Event
        * \return
        *      Returns the handle of the call
        */
-      EVENT_HANDLE operator()(const Call& call) const
+      EVENT_HANDLE operator()(const Call<_Signature>& call) const
       {
         return call.handle;
       }
@@ -706,7 +715,7 @@ class Event
      * \brief
      *      Wrapper around an unordered_set to standard the emplate_back function
      */
-    struct USet : public std::unordered_set<Call, CallHash, std::equal_to<Call>, _Allocator>
+    struct USet : public std::unordered_set<Call<_Signature>, CallHash, std::equal_to<Call<_Signature>>, _Allocator>
     {
       /*!
        * \brief
