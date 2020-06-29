@@ -24,7 +24,7 @@
 
 #include <unordered_set> // unordered_set
 #include <functional>    // function
-#include <assert.h>      // assert
+#include <cassert>       // assert
 #include <cstdint>       // uint64_t
 #include <vector>        // vector
 #include <mutex>         // mutex
@@ -86,24 +86,32 @@ using EVENT_HANDLE = uint64_t;
       PERMUTE_PMF_CV(MACRO); \
       PERMUTE_PMF_CV(MACRO##_ELLIPSIS)
 
+struct Call; // forward declare callback data type
+
 /*!
  * \brief
  *      Templated event system that holds clients callbacks to be
  *      invoked on elsewhere
  *
- * \tparam FUNCTION_SIGNATURE
+ * \tparam _function_signature
  *      Function signature of the callbacks to hold
  *      NOTE: All callbacks must be of this type
  *
- * \tparam KEEP_ORDER
+ * \tparam _keep_order
  *      Tells the system to invoke callbacks in the same order as they
  *      were hooked.
+ *
+ * \tparam _call_alloc
+ *      Allocator for the call list. Must take struct 'Call'
  */
-template<typename FUNCTION_SIGNATURE, bool KEEP_ORDER = false>
+template<typename _function_signature, bool _keep_order = false, typename _alloc = std::allocator<Call>>
 class Event
 {
-  struct Call; // forward declare callback data type
   public:
+    using _Signature = _function_signature;      //!< Function Signature
+    using _Allocator = _alloc;                   //!< Event allocator
+    static constexpr bool Ordered = _keep_order; //!< State of ordering
+
     /*!
      * \brief
      *      Hooks a non-member function to the event system provided that the type of 'func_ptr'
@@ -379,7 +387,7 @@ class Event
     struct USet; struct CallHash; // forward declare
 
     //! Type of callback list
-    typedef typename std::conditional<KEEP_ORDER, std::vector<Call>, USet>::type CallListType;
+    typedef typename std::conditional<Ordered, std::vector<Call, _Allocator>, USet>::type CallListType;
 
     //! Static map of mutex to handle thread safety for invoking
     static inline std::map<Event *, std::mutex> m_mutex;
@@ -400,7 +408,7 @@ class Event
     template<typename ...Args>
     static constexpr bool invocable()
     {
-      static_assert(std::is_invocable_v<FUNCTION_SIGNATURE, Args...>,
+      static_assert(std::is_invocable_v<_Signature , Args...>,
                     "Attempting to invoke event with differing arguments then the event function signature");
       return true;
     }
@@ -488,7 +496,7 @@ class Event
     template<typename ...Fs>
     static constexpr bool is_same_arg_list()
     {
-      static_assert((... && parameter_equivalents_v<FUNCTION_SIGNATURE, Fs>),
+      static_assert((... && parameter_equivalents_v<_Signature , Fs>),
                     "Attempted to hook a callback that does not have the same parameter list as the event");
       return true;
     }
@@ -651,9 +659,9 @@ class Event
        * \return
        *      Returns true if the handles are the same
        */
-      bool operator==(EVENT_HANDLE handle) const
+      bool operator==(EVENT_HANDLE eventHandle) const
       {
-        return this->handle == handle;
+        return handle == eventHandle;
       }
 
       /*!
@@ -663,13 +671,13 @@ class Event
        * \return
        *      Returns handle of call
        */
-      operator EVENT_HANDLE()
+      explicit operator EVENT_HANDLE()
       {
         return handle;
       }
 
-      std::function<FUNCTION_SIGNATURE> function; //!< Function to call
-      EVENT_HANDLE handle;                        //!< Handle corresponding to the function
+      std::function<_Signature> function; //!< Function to call
+      EVENT_HANDLE handle;                //!< Handle corresponding to the function
     };
 
     /*!
@@ -698,7 +706,7 @@ class Event
      * \brief
      *      Wrapper around an unordered_set to standard the emplate_back function
      */
-    struct USet : public std::unordered_set<Call, CallHash>
+    struct USet : public std::unordered_set<Call, CallHash, std::equal_to<Call>, _Allocator>
     {
       /*!
        * \brief
@@ -803,7 +811,7 @@ class Event
      */
     template<typename COMP, typename F>
     struct parameter_equivalents
-    { static constexpr bool value = std::is_constructible_v<std::function<FUNCTION_SIGNATURE>, F>; };
+    { static constexpr bool value = std::is_constructible_v<std::function<_Signature>, F>; };
 
     /*!
      * \brief
