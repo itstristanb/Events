@@ -1,23 +1,27 @@
-﻿//                                                                 .---.    //
-//                                                                /  .  \   //
-//                                                               |\_/|   |  //
-//                                                               |   |  /|  //
-//    .----------------------------------------------------------------' |  //
-//   /  .-.  /*!\author         Tristan Bouchard                       */|  //
-//  |  /   \ /*!\file              Event.hpp                           */|  //
-//  | |\_.  |/*!\date              4/20/2020                           */|  //
-//  |\|  | /|/*!                                                       */|  //
-//  | `---' |/*!\brief This file contains the implementation for an    */|  //
-//  |       |/*!            templated C++ Event system                 */|  //
-//  |       |/*!                                                       */|  //
-//  |       |/*!\par link: https://github.com/BeOurQuest/Events.git    */|  //
-//  |       |/*!                                                        /   //
-//  |       |----------------------------------------------------------'    //
-//  \       |                                                               //
-//   \     /                                                                //
-//    `---'                                                                 //
+﻿/*!
+ * \author Tristan Florian Bouchard
+ * \file   Events.hpp
+ * \data   4/20/2020
+ * \brief  This file contains the implementation for a templated C++ Event system. See README.md for more info
+ * \par    link: https://github.com/BeOurQuest/Events.git
+ */
+
+//  /$$$$$$$$ /$$    /$$ /$$$$$$$$ /$$   /$$ /$$$$$$$$  /$$$$$$       /$$   /$$ /$$$$$$$  /$$$$$$$
+// | $$_____/| $$   | $$| $$_____/| $$$ | $$|__  $$__/ /$$__  $$     | $$  | $$| $$__  $$| $$__  $$
+// | $$      | $$   | $$| $$      | $$$$| $$   | $$   | $$  \__/     | $$  | $$| $$  \ $$| $$  \ $$
+// | $$$$$   |  $$ / $$/| $$$$$   | $$ $$ $$   | $$   |  $$$$$$      | $$$$$$$$| $$$$$$$/| $$$$$$$/
+// | $$__/    \  $$ $$/ | $$__/   | $$  $$$$   | $$    \____  $$     | $$__  $$| $$____/ | $$____/
+// | $$        \  $$$/  | $$      | $$\  $$$   | $$    /$$  \ $$     | $$  | $$| $$      | $$
+// | $$$$$$$$   \  $/   | $$$$$$$$| $$ \  $$   | $$   |  $$$$$$/ /$$ | $$  | $$| $$      | $$
+// |________/    \_/    |________/|__/  \__/   |__/    \______/ |__/ |__/  |__/|__/      |__/
+
+// Copyright (c) 2020-present, Tristan Florian Bouchard
+// Distributed under the MIT License (http://opensource.org/licenses/MIT)
+
 #ifndef EVENTS_HPP
 #define EVENTS_HPP
+#pragma once
+
 #include <unordered_set> // unordered_set
 #include <functional>    // function
 #include <assert.h>      // assert
@@ -196,7 +200,7 @@ class Event
     [[nodiscard]] EVENT_HANDLE HookMethodCluster(C &class_ref, Fs... func_ptrs)
     VERIFY_TYPE(class_member_inclusion<C, Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>() && is_same_arg_list<Fs...>())
     {
-      PACK_EXPAND(callList_.emplace_back, Call(&class_ref, func_ptrs, GET_HANDLE(clusterHandle_ + 1, func_ptrs)))
+      PACK_EXPAND(callList_.emplace_back, Call(&class_ref, func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
       return GET_HANDLE(++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
@@ -317,7 +321,7 @@ class Event
      *      List of non-member functions to unhook from event
      */
     template<typename ...Fs>
-    void Unhook_fs(Fs ...func_ptrs)
+    void UnhookFunctions(Fs ...func_ptrs)
     VERIFY_TYPE(class_member_exclusion<Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>())
     {
       PACK_EXPAND(Unhook, func_ptrs)
@@ -343,7 +347,7 @@ class Event
      *
      */
     template<typename C, typename ...Fs>
-    void Unhook_m(C &class_ref, Fs ...func_ptrs)
+    void UnhookMethods(C &class_ref, Fs ...func_ptrs)
     VERIFY_TYPE(class_member_inclusion<C, Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>())
     {
       PACK_EXPAND(Unhook, &class_ref, func_ptrs)
