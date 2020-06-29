@@ -31,7 +31,6 @@
 ## Description:
 This repository contains a templated c++17 (and up) Event system that allows for clients to attach callbacks to a host 
 which then can be invoked at any time. Could also be understood as a 'act, react' pattern.
---------
 
 ## Why you should use events:
 Real-time applications typically have many things that must be interconnected. Whether its a controller input resulting in the 
@@ -40,26 +39,20 @@ and easy to modulate those responses. This project started as a key element to a
 All player and NPC actions along with the startup and shutting down of systems were driven by these events, making them
 crucial for a fast development.
 
---------
-
 ## Supported Platforms:
 - The following platforms are supported:
     - Windows: Tested on Windows 10 Professional 64-bit.
     - Linux: Tested on Ubuntu 18.04.4 LTS
 
---------
 
 ## Requirements:
 - C++17 capable compiler:
     - Visual C++ 15 (Visual Studio 2017)
     - Clang 5+
     - GCC 7+
---------
 
 ## Documentation:
 Current documentation available on the [Wiki](https://github.com/BeOurQuest/Events/wiki).
-
---------
 
 ## FAQ:
 ##### How much overhead is from invoking an Event? <br>
@@ -90,4 +83,3 @@ You must set the "KEEP_ORDER" template variable to true. <br> <br> Keeping order
 // When invoked, functions will be called in same order as they were hooked
 Event<void(void), true> event;
 ```
---------
