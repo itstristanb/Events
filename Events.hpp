@@ -256,6 +256,112 @@ struct Call
 template<typename FunctionSignature, bool KeepOrder = true, typename Allocator = std::allocator<Call<FunctionSignature>>>
 class Event
 {
+    /*!
+     * \brief
+     *      Assures that all functions in list Fs are non-member functions of a class
+     *
+     * \tparam Fs
+     *      List of function types
+     *
+     * \return
+     *      Returns true if all functions are non-member functions of a class
+     *      else static assert
+     */
+    template<typename ...Fs>
+    static constexpr bool class_member_exclusion()
+    {
+      static_assert(sizeof ...(Fs) > 0,
+                    "Calling variadic function with no parameters");
+      static_assert(!(... || std::is_member_function_pointer_v<Fs>),
+                    "A callback in variadic list Fs... is a class member");
+      return true;
+    }
+
+    /*!
+     * \brief
+     *      Used to check if the event can be invoked by the arguments passed in
+     *
+     * \tparam Args
+     *      List of type of arguments attempted to invoke the event with
+     *
+     * \return
+     *      Returns true if the event can be invoked, else static assert
+     */
+    template<typename ...Args>
+    static constexpr bool invocable()
+    {
+      static_assert(std::is_invocable_v<_Signature , Args...>,
+                    "Attempting to invoke event with differing arguments then the event function signature");
+      return true;
+    }
+
+    /*!
+     * \brief
+     *      Assures that a type is not contained within a variadic list
+     *
+     * \tparam Invalid_Type
+     *      Invalid type that list Types should not contain
+     *
+     * \tparam Types
+     *      List of types to check
+     *
+     * \return
+     *      Returns true if the type is not within the list, else static assert
+     */
+    template<typename Invalid_Type, typename ...Types>
+    static constexpr bool type_exclusion()
+    {
+      static_assert(sizeof ...(Types) > 0,
+                    "Calling variadic function with no parameters");
+      static_assert(!(... || std::is_same_v<Invalid_Type, Types>),
+                    "Invalid Type contained in Types variadic list");
+      return true;
+    }
+
+    /*!
+     * \brief
+     *      Assures that all functions in variadic Fs list belong to class C
+     *
+     * \tparam C
+     *      Type of class all functions Fs must be apart of
+     *
+     * \tparam Fs
+     *      List of function types
+     *
+     * \return
+     *      Returns true if all functions in list Fs belong to class C
+     *      else static assert
+     */
+    template<typename C, typename ...Fs>
+    static constexpr bool class_member_inclusion()
+    {
+      static_assert(std::is_class_v<C>,
+                    "Provided class pointer is not a class");
+      static_assert(sizeof ...(Fs) > 0,
+                    "Calling variadic function with no parameters");
+      static_assert((... && is_member_function_of_v<C, Fs>),
+      "A callback in variadic list Fs... is not a non-static member of class C");
+      return true;
+    }
+
+    /*!
+     * \brief
+     *      Assures that all functions in list Fs are callable by this event
+     *
+     * \tparam Fs
+     *      List of functions to assure are compatible with this event function signature
+     *
+     * \return
+     *      Returns true if the list Fs is compatible with this event, else static assert
+     */
+    template<typename ...Fs>
+    static constexpr bool is_same_arg_list()
+    {
+      static_assert((... && parameter_equivalents_v<_Signature , Fs>),
+      "Attempted to hook a callback that does not have the same parameter list as the event");
+      return true;
+    }
+
   public:
     using _Signature = FunctionSignature;      //!< Function Signature
     using _Allocator = Allocator;              //!< Event allocator
@@ -556,112 +662,6 @@ class Event
 
     /*!
      * \brief
-     *      Used to check if the event can be invoked by the arguments passed in
-     *
-     * \tparam Args
-     *      List of type of arguments attempted to invoke the event with
-     *
-     * \return
-     *      Returns true if the event can be invoked, else static assert
-     */
-    template<typename ...Args>
-    static constexpr bool invocable()
-    {
-      static_assert(std::is_invocable_v<_Signature , Args...>,
-                    "Attempting to invoke event with differing arguments then the event function signature");
-      return true;
-    }
-
-    /*!
-     * \brief
-     *      Assures that a type is not contained within a variadic list
-     *
-     * \tparam Invalid_Type
-     *      Invalid type that list Types should not contain
-     *
-     * \tparam Types
-     *      List of types to check
-     *
-     * \return
-     *      Returns true if the type is not within the list, else static assert
-     */
-    template<typename Invalid_Type, typename ...Types>
-    static constexpr bool type_exclusion()
-    {
-      static_assert(sizeof ...(Types) > 0,
-                    "Calling variadic function with no parameters");
-      static_assert(!(... || std::is_same_v<Invalid_Type, Types>),
-                    "Invalid Type contained in Types variadic list");
-      return true;
-    }
-
-    /*!
-     * \brief
-     *      Assures that all functions in variadic Fs list belong to class C
-     *
-     * \tparam C
-     *      Type of class all functions Fs must be apart of
-     *
-     * \tparam Fs
-     *      List of function types
-     *
-     * \return
-     *      Returns true if all functions in list Fs belong to class C
-     *      else static assert
-     */
-    template<typename C, typename ...Fs>
-    static constexpr bool class_member_inclusion() // assures Fs... are members of class C
-    {
-      static_assert(std::is_class_v<C>,
-                    "Provided class pointer is not a class");
-      static_assert(sizeof ...(Fs) > 0,
-                    "Calling variadic function with no parameters");
-      static_assert((... && is_member_function_of_v<C, Fs>),
-                    "A callback in variadic list Fs... is not a non-static member of class C");
-      return true;
-    }
-
-    /*!
-     * \brief
-     *      Assures that all functions in list Fs are non-member functions of a class
-     *
-     * \tparam Fs
-     *      List of function types
-     *
-     * \return
-     *      Returns true if all functions are non-member functions of a class
-     *      else static assert
-     */
-    template<typename ...Fs>
-    static constexpr bool class_member_exclusion() // assures Fs... are not members of a class
-    {
-      static_assert(sizeof ...(Fs) > 0,
-                    "Calling variadic function with no parameters");
-      static_assert(!(... || std::is_member_function_pointer_v<Fs>),
-                    "A callback in variadic list Fs... is a class member");
-      return true;
-    }
-
-    /*!
-     * \brief
-     *      Assures that all functions in list Fs are callable by this event
-     *
-     * \tparam Fs
-     *      List of functions to assure are compatible with this event function signature
-     *
-     * \return
-     *      Returns true if the list Fs is compatible with this event, else static assert
-     */
-    template<typename ...Fs>
-    static constexpr bool is_same_arg_list()
-    {
-      static_assert((... && parameter_equivalents_v<_Signature , Fs>),
-                    "Attempted to hook a callback that does not have the same parameter list as the event");
-      return true;
-    }
-
-    /*!
-     * \brief
      *      Unhooks a cluster handle from the call list
      *
      * \param cluster
@@ -713,7 +713,7 @@ class Event
 
     /*!
      * \brief
-     *      Wrapper around an unordered_set to standard the emplate_back function
+     *      Wrapper around an unordered_set to standard the emplace_back function
      */
     struct USet : public std::unordered_set<Call<_Signature>, CallHash, std::equal_to<Call<_Signature>>, _Allocator>
     {
