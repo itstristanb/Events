@@ -1,24 +1,20 @@
-# Invoke
-#### Event<FunctionSignature, KeepOrder, Allocator>::___Invoke___
+# Clear
+#### Event<FunctionSignature, KeepOrder, Allocator>::___Clear___
 
 -----
 
-__template<typename ...Args>   
-void Invoke(Args... args);__
+__void Clear();__
 
-Invokes all methods and functions hooked to the call list  
+Clears the call list
 
 ##### Parameters
-__`args`__ - Arguments to be passed to each element of the call list
+(none)
 
 ##### Return value
 (none)
 
 ##### Complexity
 O(N) where N is the size of the call list
-
-##### Notes
-Order is only guaranteed when the 'KeepOrder' template variable is true.
 
 ##### Example
 ```c++
@@ -51,23 +47,27 @@ int main(void)
         std::cout << "Value for lambda is " << val << std::endl;
     });
 
+    std::cout << "Call list size is " << event.CallListSize() << std::endl;
+
     // Invoke
     event.Invoke(123);
 
+    // Clear
+    event.Clear();
 
-    // Unhook
-    event.UnhookClass(obj);
-    event.Unhook(handle);
-    event.Unhook(function);
-    
+    std::cout << "Call list size is " << event.CallListSize() << std::endl;
+
     return 0;
 }
+
 ```
 
 Possible output:
 
 ```c++17
+Call list size is 3
 Value for method is 123
 Value for function is 123
 Value for lambda is 123
+Call list size is 0
 ```

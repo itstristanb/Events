@@ -97,8 +97,7 @@ struct Call
      * \brief
      *      Default Constructor
      */
-    Call()
-            : function([](){}), handle(EVENT_HANDLE(0))
+    Call() : function([](){}), handle(EVENT_HANDLE(0))
     {}
 
     /*!
@@ -114,9 +113,8 @@ struct Call
      * \param handle
      *      Handle corresponding to the function 'func_ptr'
      */
-    template<typename F>
-    Call(F func_ptr, EVENT_HANDLE handle)
-            : function(func_ptr), handle(handle)
+    template<typename Fn>
+    Call(Fn func_ptr, EVENT_HANDLE handle) : function(func_ptr), handle(handle)
     {}
 
     /*!
@@ -138,10 +136,51 @@ struct Call
      * \param handle
      *      Handle corresponding to member function
      */
-    template<typename C, typename F>
-    Call(C class_ptr, F func_ptr, EVENT_HANDLE handle)
-            : function(GetMethod(class_ptr, func_ptr)), handle(handle)
+    template<typename C, typename Fn>
+    Call(C class_ptr, Fn func_ptr, EVENT_HANDLE handle) : function(GetMethod(class_ptr, func_ptr)), handle(handle)
     {}
+
+    /*!
+     * \brief
+     *      Assignment operator that checks if the handles are the same
+     *
+     * \param other
+     *      Other call to check the handle of
+     *
+     * \return
+     *      Returns true if the handles are the same
+     */
+    bool operator==(const Call<Signature>& other) const
+    {
+        return handle == other.handle;
+    }
+
+    /*!
+     * \brief
+     *      Assignment operator that checks if the handles are the same
+     *
+     * \param handle
+     *      Handle to compare with this handle
+     *
+     * \return
+     *      Returns true if the handles are the same
+     */
+    bool operator==(EVENT_HANDLE eventHandle) const
+    {
+        return handle == eventHandle;
+    }
+
+    /*!
+     * \brief
+     *      Implicit conversion operator
+     *
+     * \return
+     *      Returns handle of call
+     */
+    explicit operator EVENT_HANDLE()
+    {
+        return handle;
+    }
 
     /*!
      * \brief
@@ -191,48 +230,6 @@ struct Call
      */
     PERMUTE_PMF(DEF_GET_METHOD);
 
-    /*!
-     * \brief
-     *      Assignment operator that checks if the handles are the same
-     *
-     * \param other
-     *      Other call to check the handle of
-     *
-     * \return
-     *      Returns true if the handles are the same
-     */
-    bool operator==(const Call<Signature>& other) const
-    {
-        return handle == other.handle;
-    }
-
-    /*!
-     * \brief
-     *      Assignment operator that checks if the handles are the same
-     *
-     * \param handle
-     *      Handle to compare with this handle
-     *
-     * \return
-     *      Returns true if the handles are the same
-     */
-    bool operator==(EVENT_HANDLE eventHandle) const
-    {
-        return handle == eventHandle;
-    }
-
-    /*!
-     * \brief
-     *      Implicit conversion operator
-     *
-     * \return
-     *      Returns handle of call
-     */
-    explicit operator EVENT_HANDLE()
-    {
-        return handle;
-    }
-
     std::function<Signature> function; //!< Function to call
     EVENT_HANDLE handle;                //!< Handle corresponding to the function
 };
@@ -267,13 +264,11 @@ class Event
      *      Returns true if all functions are non-member functions of a class
      *      else static assert
      */
-    template<typename ...Fs>
+    template<typename ...Fns>
     static constexpr bool class_member_exclusion()
     {
-      static_assert(sizeof ...(Fs) > 0,
-                    "Calling variadic function with no parameters");
-      static_assert(!(... || std::is_member_function_pointer_v<Fs>),
-                    "A callback in variadic list Fs... is a class member");
+      static_assert(sizeof ...(Fns) > 0, "Calling variadic function with no parameters");
+      static_assert(!(... || std::is_member_function_pointer_v<Fns>), "A callback in variadic list Fs... is a class member");
       return true;
     }
 
@@ -290,8 +285,7 @@ class Event
     template<typename ...Args>
     static constexpr bool invocable()
     {
-      static_assert(std::is_invocable_v<_Signature , Args...>,
-                    "Attempting to invoke event with differing arguments then the event function signature");
+      static_assert(std::is_invocable_v<_Signature , Args...>, "Attempting to invoke event with differing arguments then the event function signature");
       return true;
     }
 
@@ -311,10 +305,8 @@ class Event
     template<typename Invalid_Type, typename ...Types>
     static constexpr bool type_exclusion()
     {
-      static_assert(sizeof ...(Types) > 0,
-                    "Calling variadic function with no parameters");
-      static_assert(!(... || std::is_same_v<Invalid_Type, Types>),
-                    "Invalid Type contained in Types variadic list");
+      static_assert(sizeof ...(Types) > 0, "Calling variadic function with no parameters");
+      static_assert(!(... || std::is_same_v<Invalid_Type, Types>), "Invalid Type contained in Types variadic list");
       return true;
     }
 
@@ -332,15 +324,12 @@ class Event
      *      Returns true if all functions in list Fs belong to class C
      *      else static assert
      */
-    template<typename C, typename ...Fs>
+    template<typename C, typename ...Fns>
     static constexpr bool class_member_inclusion()
     {
-      static_assert(std::is_class_v<C>,
-                    "Provided class pointer is not a class");
-      static_assert(sizeof ...(Fs) > 0,
-                    "Calling variadic function with no parameters");
-      static_assert((... && is_member_function_of_v<C, Fs>),
-      "A callback in variadic list Fs... is not a non-static member of class C");
+      static_assert(std::is_class_v<C>, "Provided class pointer is not a class");
+      static_assert(sizeof ...(Fns) > 0, "Calling variadic function with no parameters");
+      static_assert((... && is_member_function_of<C, Fns>::value), "A callback in variadic list Fs... is not a non-static member of class C");
       return true;
     }
 
@@ -354,18 +343,18 @@ class Event
      * \return
      *      Returns true if the list Fs is compatible with this event, else static assert
      */
-    template<typename ...Fs>
+    template<typename ...Fns>
     static constexpr bool is_same_arg_list()
     {
-      static_assert((... && parameter_equivalents_v<_Signature , Fs>),
-      "Attempted to hook a callback that does not have the same parameter list as the event");
+      static_assert((... && parameter_equivalents<_Signature , Fns>::value), "Attempted to hook a callback that does not have the same parameter list as the event");
       return true;
     }
 
   public:
-    using _Signature = FunctionSignature;      //!< Function Signature
-    using _Allocator = Allocator;              //!< Event allocator
-    static constexpr bool Ordered = KeepOrder; //!< State of ordering
+    using _Signature = FunctionSignature;       //!< Function Signature
+    using _Allocator = Allocator;               //!< Event allocator
+    using _CallType  = Call<FunctionSignature>; //!< Type of the call wrapper
+    static constexpr bool Ordered = KeepOrder;  //!< State of ordering
 
     /*!
      * \brief
@@ -382,9 +371,9 @@ class Event
      *      Returns a handle corresponding to the hooked function.
      *      NOTE: Must not be ignored when hooking lambdas, otherwise they become permanently hooked
      */
-    template<typename F>
-    EVENT_HANDLE Hook(F &&func_ptr)
-    VERIFY_TYPE(class_member_exclusion<F>() && is_same_arg_list<F>())
+    template<typename Fn>
+    EVENT_HANDLE Hook(Fn &&func_ptr)
+    VERIFY_TYPE(class_member_exclusion<Fn>() && is_same_arg_list<Fn>())
     {
       EVENT_HANDLE handle = GET_HANDLE(POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr));
       callList_.emplace_back(Call<_Signature>(func_ptr, handle));
@@ -410,9 +399,9 @@ class Event
      * \return
      *      Returns handle corresponding to non-static member function hooked
      */
-    template<typename C, typename F>
-    EVENT_HANDLE Hook(C &class_ref, F func_ptr)
-    VERIFY_TYPE(class_member_inclusion<C, F>() && is_same_arg_list<F>())
+    template<typename C, typename Fn>
+    EVENT_HANDLE Hook(C &class_ref, Fn func_ptr)
+    VERIFY_TYPE(class_member_inclusion<C, Fn>() && is_same_arg_list<Fn>())
     {
       EVENT_HANDLE handle = GET_HANDLE(POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr));
       callList_.emplace_back(Call<_Signature>(&class_ref, func_ptr, handle));
@@ -432,9 +421,9 @@ class Event
      * \return
      *      Returns handle to corresponding to the cluster of non-member functions
      */
-    template<typename ...Fs>
-    [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fs&&... func_ptrs)
-    VERIFY_TYPE(class_member_exclusion<Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>() && is_same_arg_list<Fs...>())
+    template<typename ...Fns>
+    [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fns&&... func_ptrs)
+    VERIFY_TYPE(class_member_exclusion<Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>() && is_same_arg_list<Fns...>())
     {
       PACK_EXPAND(callList_.emplace_back, Call<_Signature>(func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
       return GET_HANDLE(++clusterHandle_, POINTER_INT_CAST(nullptr));
@@ -459,9 +448,9 @@ class Event
      * \return
      *      Returns handle to corresponding to the cluster of non-static member functions
      */
-    template<typename C, typename ...Fs>
-    [[nodiscard]] EVENT_HANDLE HookMethodCluster(C &class_ref, Fs... func_ptrs)
-    VERIFY_TYPE(class_member_inclusion<C, Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>() && is_same_arg_list<Fs...>())
+    template<typename C, typename ...Fns>
+    [[nodiscard]] EVENT_HANDLE HookMethodCluster(C &class_ref, Fns... func_ptrs)
+    VERIFY_TYPE(class_member_inclusion<C, Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>() && is_same_arg_list<Fns...>())
     {
       PACK_EXPAND(callList_.emplace_back, Call<_Signature>(&class_ref, func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
       return GET_HANDLE(++clusterHandle_, POINTER_INT_CAST(nullptr));
@@ -499,9 +488,9 @@ class Event
      * \param func_ptr
      *      Pointer to non-member function to unhook
      */
-    template<typename F>
-    void Unhook(F func_ptr)
-    VERIFY_TYPE(class_member_exclusion<F>())
+    template<typename Fn>
+    void Unhook(Fn func_ptr)
+    VERIFY_TYPE(class_member_exclusion<Fn>())
     {
       RemoveCall(GET_HANDLE(POINTER_INT_CAST(nullptr), POINTER_INT_CAST(func_ptr)));
     }
@@ -522,9 +511,9 @@ class Event
      * \param func_ptr
      *      Pointer to non-static member function to unhook
      */
-    template<typename C, typename F>
-    void Unhook(C &class_ref, F func_ptr)
-    VERIFY_TYPE(class_member_inclusion<C, F>())
+    template<typename C, typename Fn>
+    void Unhook(C &class_ref, Fn func_ptr)
+    VERIFY_TYPE(class_member_inclusion<C, Fn>())
     {
       RemoveCall(GET_HANDLE(POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr)));
     }
@@ -583,9 +572,9 @@ class Event
      * \param func_ptrs
      *      List of non-member functions to unhook from event
      */
-    template<typename ...Fs>
-    void UnhookFunctions(Fs ...func_ptrs)
-    VERIFY_TYPE(class_member_exclusion<Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>())
+    template<typename ...Fns>
+    void UnhookFunctions(Fns ...func_ptrs)
+    VERIFY_TYPE(class_member_exclusion<Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>())
     {
       PACK_EXPAND(Unhook, func_ptrs)
     }
@@ -609,11 +598,11 @@ class Event
      *      List of non-static member functions contained in class C to unhook from event
      *
      */
-    template<typename C, typename ...Fs>
-    void UnhookMethods(C &class_ref, Fs ...func_ptrs)
-    VERIFY_TYPE(class_member_inclusion<C, Fs...>() && type_exclusion<EVENT_HANDLE, Fs...>())
+    template<typename C, typename ...Fns>
+    void UnhookMethods(C &class_ref, Fns ...func_ptrs)
+    VERIFY_TYPE(class_member_inclusion<C, Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>())
     {
-      PACK_EXPAND(Unhook, &class_ref, func_ptrs)
+      PACK_EXPAND(Unhook, class_ref, func_ptrs)
     }
 
     /*!
@@ -691,6 +680,25 @@ class Event
 
     /*!
      * \brief
+     *      Converts a pointer into an std::uintptr_t for the EVENT_HANDLE
+     *
+     * \tparam T
+     *      Type of pointer
+     *
+     * \param t
+     *      Pointer to hash
+     *
+     * \return
+     *      Returns the address of the pointer as an int
+     */
+    template<typename T>
+    static constexpr std::uintptr_t POINTER_INT_CAST(T t)
+    {
+        return reinterpret_cast<std::uintptr_t>(*reinterpret_cast<void**>(&t));
+    }
+
+    /*!
+     * \brief
      *      Hash functor used in unordered_set
      */
     struct CallHash
@@ -733,25 +741,6 @@ class Event
         assert(this->emplace(args...).second && "ERROR : Duplicate function hooked to event");
       }
     };
-
-    /*!
-     * \brief
-     *      Converts a pointer into an std::uintptr_t for the EVENT_HANDLE
-     *
-     * \tparam T
-     *      Type of pointer
-     *
-     * \param t
-     *      Pointer to hash
-     *
-     * \return
-     *      Returns the address of the pointer as an int
-     */
-    template<typename T>
-    static constexpr std::uintptr_t POINTER_INT_CAST(T t)
-    {
-      return reinterpret_cast<std::uintptr_t>(*reinterpret_cast<void**>(&t));
-    }
 
     /*!
      * \brief
@@ -802,25 +791,11 @@ class Event
 
     /*!
      * \brief
-     *      Checks if a function F passed in is apart of a class C
-     *      is true if F is a non-static member of class C
-     *
-     * \tparam C
-     *      Class type
-     *
-     * \tparam F
-     *      Function type
-     */
-    template<typename C, typename F>
-    static inline constexpr bool is_member_function_of_v = is_member_function_of<C, F>::value;
-
-    /*!
-     * \brief
      *      Base case, is a lambda, check if it can be constructed as an std::function
      */
-    template<typename COMP, typename F>
+    template<typename COMP, typename Fn>
     struct parameter_equivalents
-    { static constexpr bool value = std::is_constructible_v<std::function<_Signature>, F>; };
+    { static constexpr bool value = std::is_constructible_v<std::function<_Signature>, Fn>; };
 
     /*!
      * \brief
@@ -875,20 +850,6 @@ class Event
      *      List of argument types
      */
     PERMUTE_PMF(DEF_PARAMETER_EQUIVALENTS);
-
-    /*!
-     * \brief
-     *      Checks to see if the parameters of F are that of the parameters of COMP
-     *      is true if they have the same argument list
-     *
-     * \tparam COMP
-     *     Function signature to be invoked with argument list from F
-     *
-     * \tparam F
-     *     Function type to compare against COMP
-     */
-    template<typename COMP, typename F>
-    static inline constexpr bool parameter_equivalents_v = parameter_equivalents<COMP, F>::value;
 };
 
 #endif
