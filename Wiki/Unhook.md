@@ -9,7 +9,7 @@ __template\<typename Fn\>
 __template\<typename C, typename Fn\>  
   void Unhook(C &class_ref, Fn func_ptr);__
 
-__void Unhook(EVENT_HANDLE handle)__
+__void Unhook(EVENT_HANDLE handle);__
 
 Removes a function, lambda or method from the call list and being invoked
 
