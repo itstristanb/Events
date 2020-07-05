@@ -439,44 +439,44 @@
 //    return 0;
 //}
 
-#include "Events.hpp"
-#include <iostream>
-
-struct object
-{
-    void method(int val)
-    {
-        std::cout << "Value for method is " << val << std::endl;
-    }
-};
-
-void function(int val)
-{
-    std::cout << "Value for function is " << val << std::endl;
-}
-
-int main(void)
-{
-    // Create
-    Event<void(int)> event;
-    object obj;
-
-    // Hook
-    event.Hook(obj, &object::method);
-    event.Hook(function);
-    EVENT_HANDLE handle = event.Hook([](int val) {
-        std::cout << "Value for lambda is " << val << std::endl;
-    });
-
-    std::cout << "Call list size is " << event.CallListSize() << std::endl;
-
-    // Invoke
-    event.Invoke(123);
-
-    // Clear
-    event.Clear();
-
-    std::cout << "Call list size is " << event.CallListSize() << std::endl;
-
-    return 0;
-}
+//#include "Events.hpp"
+//#include <iostream>
+//
+//struct object
+//{
+//    void method(int val)
+//    {
+//        std::cout << "Value for method is " << val << std::endl;
+//    }
+//};
+//
+//void function(int val)
+//{
+//    std::cout << "Value for function is " << val << std::endl;
+//}
+//
+//int main(void)
+//{
+//    // Create
+//    Event<void(int)> event;
+//    object obj;
+//
+//    // Hook
+//    event.Hook(obj, &object::method);
+//    event.Hook(function);
+//    EVENT_HANDLE handle = event.Hook([](int val) {
+//        std::cout << "Value for lambda is " << val << std::endl;
+//    });
+//
+//    std::cout << "Call list size is " << event.CallListSize() << std::endl;
+//
+//    // Invoke
+//    event.Invoke(123);
+//
+//    // Clear
+//    event.Clear();
+//
+//    std::cout << "Call list size is " << event.CallListSize() << std::endl;
+//
+//    return 0;
+//}
