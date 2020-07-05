@@ -13,8 +13,8 @@
 [![MIT license](https://img.shields.io/badge/License-MIT-green.svg)](https://lbesson.mit-license.org/)
 [![Language](https://img.shields.io/badge/language-C++-turquoise.svg)](https://isocpp.org/)
 [![Standard](https://img.shields.io/badge/c%2B%2B-17-turquoise.svg)](https://en.wikipedia.org/wiki/C%2B%2B17)
-[![OS](https://img.shields.io/badge/c%2B%2B-Windows-black.svg)](https://en.wikipedia.org/wiki/Microsoft_Windows)
-[![OS](https://img.shields.io/badge/c%2B%2B-Linux-black.svg)](https://en.wikipedia.org/wiki/Linux)
+[![Platform](https://img.shields.io/badge/platform-Windows-black.svg)](https://en.wikipedia.org/wiki/Microsoft_Windows)
+[![Platform](https://img.shields.io/badge/platform-Linux-black.svg)](https://en.wikipedia.org/wiki/Linux)
 
 ## Description:
 This repository contains a thread-safe, templated c++17 (and up) Event system that allows for clients to attach callbacks to a host 
