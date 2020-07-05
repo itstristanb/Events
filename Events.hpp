@@ -641,7 +641,7 @@ class Event
     struct USet; struct CallHash; // forward declare
 
     //! Type of callback list
-    typedef typename std::conditional<Ordered, std::vector<Call<_Signature>, _Allocator>, USet>::type CallListType;
+    using CallListType = std::conditional_t<Ordered, std::vector<Call<_Signature>, _Allocator>, USet>;
 
     //! Static map of mutex to handle thread safety for invoking
     static inline std::map<Event *, std::mutex> m_mutex;
