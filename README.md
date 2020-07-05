@@ -10,20 +10,6 @@
  |________/    \_/    |________/|__/  \__/   |__/    \______/ 
 ```
 
-<table>
-    <tr>
-        <td>
-            master branch
-        </td>
-        <td>
-            Linux/OSX <a href="https://travis-ci.com/rmxbalanque/csys"><img src="https://travis-ci.com/rmxbalanque/csys.svg?branch=master"></a>
-        </td>
-        <td> 
-            Windows <a href="https://ci.appveyor.com/project/rmxbalanque/csys"><img src="https://ci.appveyor.com/api/projects/status/p5e3c6rdysatd6v9/branch/master?svg=true"></a>
-        </td>
-    </tr>
-</table>
-
 [![MIT license](https://img.shields.io/badge/License-MIT-green.svg)](https://lbesson.mit-license.org/)
 [![Language](https://img.shields.io/badge/language-C++-blue.svg)](https://isocpp.org/)
 [![Standard](https://img.shields.io/badge/c%2B%2B-17-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B17)
