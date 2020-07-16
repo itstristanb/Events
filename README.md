@@ -22,7 +22,7 @@ which then can be invoked at any time. Could also be understood as a 'act, react
 
 ## Why you should use events:
 Real-time applications typically have many things that must be interconnected. Whether its a controller input resulting in the 
-player jumping, audio player etc., or a time sensitive event such as a client entering a queue, this api makes it quick 
+player jumping, audio playing etc., or a time sensitive event such as a client entering a queue, this api makes it quick 
 and easy to modulate those responses. This project started as a key element to a custom game engine, written in c++.
 All player and NPC actions along with the startup and shutting down of systems were driven by these events, making them
 crucial for a fast development.
