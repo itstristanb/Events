@@ -20,7 +20,7 @@ __`func_ptrs`__ - Address of the methods contained within the class `class_ref` 
 O(N) where N is the size of the call list
 
 ##### Notes
-If all methods need to be unhooked, consider [UnhookClass](https://github.com/BeOurQuest/Events/wiki/UnhookClass)
+If all methods need to be unhooked, consider [UnhookClass](https://github.com/itstristanb/Events/wiki/UnhookClass)
 
 ```c++
 #include "Events.hpp"

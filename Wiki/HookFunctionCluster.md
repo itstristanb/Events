@@ -18,7 +18,7 @@ An EVENT_HANDLE to the corresponding hooked functions
 O(N) where N is the number of lambdas and or functions being hooked
 
 ##### Notes
-Functions hooked by this function must be unhooked using [UnhookCluster](https://github.com/BeOurQuest/Events/wiki/UnhookCluster).  
+Functions hooked by this function must be unhooked using [UnhookCluster](https://github.com/itstristanb/Events/wiki/UnhookCluster).  
 Invoke order dependent on template variable __`KeepOrder`__.
 
 ##### Example

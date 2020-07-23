@@ -5,7 +5,7 @@
 
 __void UnhookCluster(EVENT_HANDLE handle);__
 
-Unhooks a cluster of functions hooked by [HookFunctionCluster](https://github.com/BeOurQuest/Events/wiki/HookFunctionCluster) and [HookMethodCluster](https://github.com/BeOurQuest/Events/wiki/HookMethodCluster)
+Unhooks a cluster of functions hooked by [HookFunctionCluster](https://github.com/itstristanb/Events/wiki/HookFunctionCluster) and [HookMethodCluster](https://github.com/itstristanb/Events/wiki/HookMethodCluster)
 
 ##### Parameters
 __`handle`__ - Event handle corresponding to the cluster of functions or methods returned by one of the `Hook*Cluster` method

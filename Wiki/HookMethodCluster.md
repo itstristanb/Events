@@ -20,7 +20,7 @@ An EVENT_HANDLE to the corresponding hooked non-static member functions
 O(N) where N is the number of non-static member functions being hooked
 
 ##### Notes
-Non-static member functions hooked by this function must be unhooked using [UnhookCluster](https://github.com/BeOurQuest/Events/wiki/UnhookCluster).  
+Non-static member functions hooked by this function must be unhooked using [UnhookCluster](https://github.com/itstristanb/Events/wiki/UnhookCluster).  
 Invoke order dependent on template variable __`KeepOrder`__.
 
 ##### Example
