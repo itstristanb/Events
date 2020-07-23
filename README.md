@@ -40,7 +40,7 @@ crucial for a fast development.
     - GCC 7+
 
 ## Documentation:
-Current documentation available on the [Wiki](https://github.com/BeOurQuest/Events/wiki).
+Current documentation available on the [Wiki](https://github.com/itstristanb/Events/wiki).
 
 ## FAQ:
 ##### How much overhead is from invoking an Event? <br>
