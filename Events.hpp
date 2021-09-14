@@ -27,7 +27,6 @@
 #include <cassert>       // assert
 #include <cstdint>       // uint64_t
 #include <vector>        // vector
-#include <mutex>         // mutex
 #include <map>           // map
 
 //! For variadic template expansion
@@ -626,25 +625,11 @@ class Event
         callList_.clear();
         clusterHandle_ = 0;
     }
-
-    /*!
-     * \brief
-     *      Removes the this pointer from static map contained within invoke
-     */
-    ~Event()
-    {
-      auto it = m_mutex.find(this);
-      if (it != m_mutex.end())
-        m_mutex.erase(it);
-    }
   private:
     struct USet; struct CallHash; // forward declare
 
     //! Type of callback list
     using CallListType = std::conditional_t<Ordered, std::vector<Call<_Signature>, _Allocator>, USet>;
-
-    //! Static map of mutex to handle thread safety for invoking
-    static inline std::map<Event *, std::mutex> m_mutex;
 
     CallListType callList_;          //!< List of callbacks
     EVENT_HANDLE clusterHandle_ = 0; //!< Cluster handle to differ from class address
