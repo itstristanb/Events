@@ -17,7 +17,7 @@
 [![Platform](https://img.shields.io/badge/platform-Linux-black.svg)](https://en.wikipedia.org/wiki/Linux)
 
 ## Description:
-This repository contains a thread-safe, templated c++17 (and up) Event system that allows for clients to attach callbacks to a host 
+This repository contains a templated c++17 (and up) Event system that allows for clients to attach callbacks to a host 
 which then can be invoked at any time. Could also be understood as a 'act, react' pattern.
 
 ## Why you should use events:
