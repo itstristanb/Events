@@ -472,7 +472,6 @@ class Event
     void Invoke(Args... args)
     VERIFY_TYPE(invocable<Args...>())
     {
-      std::lock_guard<std::mutex> lk(m_mutex[this]);
       for (auto &call : callList_)
         call.function(args...);
     }
