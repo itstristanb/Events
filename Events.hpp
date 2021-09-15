@@ -36,28 +36,49 @@
  * \brief
  *      Handle to a function within the event call list
  *      Layout of EVENT_HANDLE memory:
- *                                              |    32bits    |       32bits     |
- *      if non-member function                = | 0            | &function        |
- *      if non-static member function         = | &class       | &member_function |
- *      if non-member function cluster        = | unique val   | &function        |
- *      if non-static member function cluster = | unique val   | &member_function |
+ *                                              |  16bits  |   16bits   |       32bits     |
+ *      if non-member function                = | Priority | 0          | &function        |
+ *      if non-static member function         = | Priority | &class     | &member_function |
+ *      if non-member function cluster        = | Priority | unique val | &function        |
+ *      if non-static member function cluster = | Priority | unique val | &member_function |
  */
 using EVENT_HANDLE = uint64_t;
 
-// ! Mask for getting the cluster
-#define EVENT_CLUSTER_MASK 0b11111111111111111111111111111111'00000000000000000000000000000000
+//! Bit masks for getting the first n bits
+#define BITMASK_FIRST_32 0b11111111111111111111111111111111
+#define BITMASK_FIRST_16 0b1111111111111111
 
-//! Mask for getting the id
-#define EVENT_ID_MASK 0b00000000000000000000000000000000'11111111111111111111111111111111
+//! Helper macros to abstract redundant code for handle values
+#define EVENT_SET_PROPERTY(__handle, __value, lsb_mask__, field_offset__, clear_mask__) \
+(((EVENT_HANDLE(__value) & (lsb_mask__)) << (field_offset__)) | (EVENT_HANDLE(__handle) & (clear_mask__)))
+#define EVENT_GET_PROPERTY(__handle, field_offset__, lsb_mask__) \
+((EVENT_HANDLE(__handle) >> (field_offset__)) & (lsb_mask__))
 
-//! Gets the cluster from a handle
-#define GET_CLUSTER(handle) (EVENT_HANDLE(handle) & EVENT_CLUSTER_MASK)
+//! Priority handle layout utility macros
+#define EVENT_PRIORITY_OFFSET 48
+#define EVENT_PRIORITY_CLEAR_MASK 0b0000000000000000'1111111111111111'11111111111111111111111111111111
+#define SET_PRIORITY(__handle, __value) EVENT_SET_PROPERTY(__handle, __value, BITMASK_FIRST_16, EVENT_PRIORITY_OFFSET, EVENT_PRIORITY_CLEAR_MASK)
+#define GET_PRIORITY(__handle) ((EVENT_HANDLE(__handle) >> EVENT_PRIORITY_OFFSET) & BITMASK_FIRST_16)
 
-//! Get the id from the handle
-#define GET_ID(handle) (EVENT_HANDLE(handle) & EVENT_ID_MASK)
+//! Cluster handle layout utility macros
+#define EVENT_CLUSTER_OFFSET 32
+#define EVENT_CLUSTER_CLEAR_MASK 0b1111111111111111'0000000000000000'11111111111111111111111111111111
+#define SET_CLUSTER(__handle, __value) EVENT_SET_PROPERTY(__handle, __value, BITMASK_FIRST_16, EVENT_CLUSTER_OFFSET, EVENT_CLUSTER_CLEAR_MASK)
+#define GET_CLUSTER(__handle) EVENT_GET_PROPERTY(__handle, EVENT_CLUSTER_OFFSET, BITMASK_FIRST_16)
+
+//! Id handle layout utility macros
+#define EVENT_ID_OFFSET 0
+#define EVENT_ID_CLEAR_MASK 0b1111111111111111'1111111111111111'00000000000000000000000000000000
+#define SET_ID(__handle, __value) EVENT_SET_PROPERTY(__handle, __value, BITMASK_FIRST_32, EVENT_ID_OFFSET, EVENT_ID_CLEAR_MASK)
+#define GET_ID(__handle) EVENT_GET_PROPERTY(__handle, EVENT_ID_OFFSET, BITMASK_FIRST_32)
 
 //! Constructs a handle with the last 4 bytes has the cluster and the first 4 be the ID
-#define GET_HANDLE(cluster, id) ((EVENT_HANDLE(cluster) << sizeof(uint32_t) * 8) | GET_ID(id))
+#define MAKE_HANDLE(__priority, __cluster, __id) \
+  (                                              \
+      SET_PRIORITY(0, __priority) |              \
+      SET_CLUSTER(0, __cluster) |                \
+      SET_ID(0, __id)                            \
+ )
 
 //! For type checking with a cleaner syntax
 #define VERIFY_TYPE noexcept
@@ -244,12 +265,12 @@ struct Call
  *
  * \tparam KeepOrder
  *      Tells the system to invoke callbacks in the same order as they
- *      were hooked.
+ *      were hooked. That is, changing the priority when KeepOrder is true is a no-op
  *
  * \tparam Allocator
  *      Allocator for the call list. Must take struct 'Call'
  */
-template<typename FunctionSignature, bool KeepOrder = true, typename Allocator = std::allocator<Call<FunctionSignature>>>
+template<typename FunctionSignature, bool KeepOrder = false, typename Allocator = std::allocator<Call<FunctionSignature>>>
 class Event
 {
     /*!
@@ -359,6 +380,8 @@ class Event
      * \brief
      *      Hooks a non-member function to the event system provided that the type of 'func_ptr'
      *      matches that of 'FUNCTION_SIGNATURE'
+     *      NOTE: If you hook the same function with differing priorities, you must specify
+     *      the priority, or use the handle when Unhooking
      *
      * \tparam F
      *      Type of function
@@ -370,18 +393,21 @@ class Event
      *      Returns a handle corresponding to the hooked function.
      *      NOTE: Must not be ignored when hooking lambdas, otherwise they become permanently hooked
      */
-    template<typename Fn>
+    template<uint16_t PRIORITY = 0, typename Fn>
     EVENT_HANDLE Hook(Fn &&func_ptr)
     VERIFY_TYPE(class_member_exclusion<Fn>() && is_same_arg_list<Fn>())
     {
-      EVENT_HANDLE handle = GET_HANDLE(POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr));
-      callList_.emplace_back(Call<_Signature>(func_ptr, handle));
+      uint16_t priority = Ordered ? priority_++ : PRIORITY;
+      EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr));
+      callList_[priority].emplace_back(Call<_Signature>(func_ptr, handle));
       return handle;
     }
 
     /*!
      * \brief
      *      Hooks a non-static member function to the event system
+     *      NOTE: If you hook the same non-static member function with differing priorities,
+     *      you must specify the priority, or use the handle when Unhooking.
      *
      * \tparam C
      *      Type of user defined type
@@ -398,12 +424,13 @@ class Event
      * \return
      *      Returns handle corresponding to non-static member function hooked
      */
-    template<typename C, typename Fn>
+    template<uint16_t PRIORITY = 0, typename C, typename Fn>
     EVENT_HANDLE Hook(C &class_ref, Fn func_ptr)
     VERIFY_TYPE(class_member_inclusion<C, Fn>() && is_same_arg_list<Fn>())
     {
-      EVENT_HANDLE handle = GET_HANDLE(POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr));
-      callList_.emplace_back(Call<_Signature>(&class_ref, func_ptr, handle));
+      uint16_t priority = Ordered ? priority_++ : PRIORITY;
+      EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr));
+      callList_[priority].emplace_back(Call<_Signature>(&class_ref, func_ptr, handle));
       return handle;
     }
 
@@ -420,12 +447,12 @@ class Event
      * \return
      *      Returns handle to corresponding to the cluster of non-member functions
      */
-    template<typename ...Fns>
+    template<uint16_t PRIORITY = 0, typename ...Fns>
     [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fns&&... func_ptrs)
     VERIFY_TYPE(class_member_exclusion<Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>() && is_same_arg_list<Fns...>())
     {
-      PACK_EXPAND(callList_.emplace_back, Call<_Signature>(func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
-      return GET_HANDLE(++clusterHandle_, POINTER_INT_CAST(nullptr));
+      PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
+      return MAKE_HANDLE(PRIORITY, ++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
     /*!
@@ -447,19 +474,19 @@ class Event
      * \return
      *      Returns handle to corresponding to the cluster of non-static member functions
      */
-    template<typename C, typename ...Fns>
+    template<uint16_t PRIORITY = 0, typename C, typename ...Fns>
     [[nodiscard]] EVENT_HANDLE HookMethodCluster(C &class_ref, Fns... func_ptrs)
     VERIFY_TYPE(class_member_inclusion<C, Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>() && is_same_arg_list<Fns...>())
     {
-      PACK_EXPAND(callList_.emplace_back, Call<_Signature>(&class_ref, func_ptrs, GET_HANDLE(clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
-      return GET_HANDLE(++clusterHandle_, POINTER_INT_CAST(nullptr));
+      PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(&class_ref, func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
+      return MAKE_HANDLE(PRIORITY, ++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
     /*!
      * \brief
      *      Invokes callbacks hooked to the event
      *      NOTE: Hooking or Unhooking to the same event during the invoke process is undefined
-     *      NOTE: Thread safe
+     *      NOTE: Order that the callbacks get invoked is undefined unless specified with a priority
      *
      * \tparam Args
      *      Types of the parameters passed in
@@ -472,9 +499,9 @@ class Event
     void Invoke(Args... args)
     VERIFY_TYPE(invocable<Args...>())
     {
-      std::lock_guard<std::mutex> lk(m_mutex[this]);
-      for (auto &call : callList_)
-        call.function(args...);
+      for (auto &priority : callList_)
+        for (auto &call : priority.second)
+          call.function(args...);
     }
 
     /*!
@@ -487,11 +514,11 @@ class Event
      * \param func_ptr
      *      Pointer to non-member function to unhook
      */
-    template<typename Fn>
+    template<uint16_t PRIORITY = 0, typename Fn>
     void Unhook(Fn func_ptr)
     VERIFY_TYPE(class_member_exclusion<Fn>())
     {
-      RemoveCall(GET_HANDLE(POINTER_INT_CAST(nullptr), POINTER_INT_CAST(func_ptr)));
+      RemoveCall(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(func_ptr)));
     }
 
     /*!
@@ -510,11 +537,11 @@ class Event
      * \param func_ptr
      *      Pointer to non-static member function to unhook
      */
-    template<typename C, typename Fn>
+    template<uint16_t PRIORITY = 0, typename C, typename Fn>
     void Unhook(C &class_ref, Fn func_ptr)
     VERIFY_TYPE(class_member_inclusion<C, Fn>())
     {
-      RemoveCall(GET_HANDLE(POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr)));
+      RemoveCall(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr)));
     }
 
     /*!
@@ -540,7 +567,7 @@ class Event
      */
     void UnhookCluster(EVENT_HANDLE handle)
     {
-      RemoveCluster(GET_CLUSTER(handle));
+      RemoveCluster(handle);
     }
 
     /*!
@@ -554,11 +581,11 @@ class Event
      * \param class_ref
      *      Reference to class has non-static member functions hooked to event
      */
-    template<typename C>
+    template<uint16_t PRIORITY = 0, typename C>
     void UnhookClass(C &class_ref)
     {
       static_assert(std::is_class_v<C>, "Class pointer provided not a pointer to a class");
-      RemoveCluster(GET_HANDLE(POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(nullptr)));
+      RemoveCluster(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(nullptr)));
     }
 
     /*!
@@ -613,7 +640,10 @@ class Event
      */
     [[nodiscard]] size_t CallListSize() const
     {
-        return callList_.size();
+      size_t size = 0;
+      for (auto &call_list : callList_)
+        size += call_list.second.size();
+      return size;
     }
 
     /*!
@@ -622,17 +652,19 @@ class Event
      */
     void Clear()
     {
-        callList_.clear();
-        clusterHandle_ = 0;
+      for (auto &call_list : callList_)
+        call_list.second.clear();
+      clusterHandle_ = 0;
     }
   private:
     struct USet; struct CallHash; // forward declare
 
-    //! Type of callback list
-    using CallListType = std::conditional_t<Ordered, std::vector<Call<_Signature>, _Allocator>, USet>;
+    //! Type of priority to callback list
+    using CallListType = std::map<unsigned int, USet>;
 
-    CallListType callList_;          //!< List of callbacks
-    EVENT_HANDLE clusterHandle_ = 0; //!< Cluster handle to differ from class address
+    CallListType callList_;      //!< List of callbacks
+    uint16_t priority_ = 0;      //!< Increases on each Hook* when KeepOrder is true
+    uint16_t clusterHandle_ = 0; //!< Cluster handle to differ from class address
 
     /*!
      * \brief
@@ -641,11 +673,13 @@ class Event
      * \param cluster
      *      Handle to cluster of events to unhook
      */
-    void RemoveCluster(EVENT_HANDLE cluster)
+    void RemoveCluster(EVENT_HANDLE handle)
     {
-      for (auto it = callList_.begin(); it != callList_.end();)
+      EVENT_HANDLE cluster = GET_CLUSTER(handle);
+      auto &call_list = callList_[GET_PRIORITY(handle)];
+      for (auto it = call_list.begin(); it != call_list.end();)
         if (cluster == GET_CLUSTER(it->handle))
-          it = callList_.erase(it);
+          it = call_list.erase(it);
         else
           ++it;
     }
@@ -659,8 +693,9 @@ class Event
      */
     void RemoveCall(EVENT_HANDLE handle)
     {
-      auto call = std::find(callList_.begin(), callList_.end(), handle);
-      if (call != callList_.end()) callList_.erase(call);
+      auto &call_list = callList_[GET_PRIORITY(handle)];
+      auto call = std::find(call_list.begin(), call_list.end(), handle);
+      if (call != call_list.end()) call_list.erase(call);
     }
 
     /*!
@@ -723,7 +758,7 @@ class Event
       template<typename ...Args>
       void emplace_back(Args... args)
       {
-        assert(this->emplace(args...).second && "ERROR : Duplicate function hooked to event");
+        assert(this->emplace(args...).second && "ERROR : Duplicate function hooked to event with same priority");
       }
     };
 
