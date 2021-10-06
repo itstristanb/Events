@@ -642,7 +642,7 @@ class Event
     {
       size_t size = 0;
       for (auto &call_list : callList_)
-        size += call_list.second.size();
+          size += call_list.second.size();
       return size;
     }
 
@@ -758,7 +758,8 @@ class Event
       template<typename ...Args>
       void emplace_back(Args... args)
       {
-        assert(this->emplace(args...).second && "ERROR : Duplicate function hooked to event with same priority");
+        bool added = this->emplace(args...).second;
+        assert(added && "ERROR : Duplicate function hooked to event with same priority");
       }
     };
 
