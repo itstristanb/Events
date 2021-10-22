@@ -186,9 +186,9 @@ struct Call
      *      Overload for all non-ellipsis member functions
      *
      */
-#define DEF_GET_METHOD(CV_REF_NOEXCEPT_OPT) \
+#define DEF_GET_METHOD(...) \
         template<typename C, typename R, typename ...Args> \
-        auto GetMethod(C *class_ptr, R(C::*func_ptr)(Args...) CV_REF_NOEXCEPT_OPT) \
+        auto GetMethod(C *class_ptr, R(C::*func_ptr)(Args...) __VA_ARGS__) \
         { \
           return [class_ptr, func_ptr] (Args... args) mutable { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); }; \
         }
@@ -197,9 +197,9 @@ struct Call
      * \brief
      *      Overload for all ellipsis member functions
      */
-#define DEF_GET_METHOD_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
+#define DEF_GET_METHOD_ELLIPSIS(...) \
         template<typename C, typename R, typename ...Args> \
-        auto GetMethod(C *class_ptr, R(C::*func_ptr)(Args..., ...) CV_REF_NOEXCEPT_OPT) \
+        auto GetMethod(C* class_ptr, R (C::*func_ptr)(Args..., ...) __VA_ARGS__) \
         { \
           return [class_ptr, func_ptr](Args... args) mutable { (void)(std::mem_fn(func_ptr)(class_ptr, args...)); }; \
         }
@@ -741,9 +741,9 @@ class Event
      * \brief
      *      Overload for non-static non-ellipsis member functions
      */
-    #define DEF_IS_MEMBER_FUNCTION_OF(CV_REF_NOEXCEPT_OPT) \
+    #define DEF_IS_MEMBER_FUNCTION_OF(...) \
       template<typename C, typename R, typename... Args> \
-      struct is_member_function_of<C, R(C::*)(Args...) CV_REF_NOEXCEPT_OPT> \
+      struct is_member_function_of<C, R (C::*)(Args...) __VA_ARGS__> \
       { \
           static constexpr bool value = true; \
       }
@@ -752,9 +752,9 @@ class Event
      * \brief
      *     Overload for non-static ellipsis member functions
      */
-    #define DEF_IS_MEMBER_FUNCTION_OF_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
+    #define DEF_IS_MEMBER_FUNCTION_OF_ELLIPSIS(...) \
       template<typename C, typename R, typename... Args> \
-      struct is_member_function_of<C, R(C::*)(Args..., ...) CV_REF_NOEXCEPT_OPT> \
+      struct is_member_function_of<C, R (C::*)(Args..., ...) __VA_ARGS__> \
       { \
           static constexpr bool value = true; \
       }
@@ -803,18 +803,18 @@ class Event
      * \brief
      *      Overload for non-static non-ellipsis member function
      */
-    #define DEF_PARAMETER_EQUIVALENTS(CV_REF_NOEXCEPT_OPT) \
+    #define DEF_PARAMETER_EQUIVALENTS(...) \
     template<typename COMP, typename C, typename R, typename ...Args> \
-    struct parameter_equivalents<COMP, R(C::*)(Args...) CV_REF_NOEXCEPT_OPT> \
+    struct parameter_equivalents<COMP, R (C::*)(Args...) __VA_ARGS__> \
     { static constexpr bool value = std::is_invocable_v<COMP, Args...>; };
 
     /*!
      * \brief
      *      Overload for non-static ellipsis member function
      */
-    #define DEF_PARAMETER_EQUIVALENTS_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
+    #define DEF_PARAMETER_EQUIVALENTS_ELLIPSIS(...) \
     template<typename COMP, typename C, typename R, typename ...Args> \
-    struct parameter_equivalents<COMP, R(C::*)(Args..., ...) CV_REF_NOEXCEPT_OPT> \
+    struct parameter_equivalents<COMP, R (C::*)(Args..., ...) __VA_ARGS__> \
     { static constexpr bool value = std::is_invocable_v<COMP, Args...>; };
 
     /*!
