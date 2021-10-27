@@ -394,11 +394,11 @@ class Event
      *      NOTE: Must not be ignored when hooking lambdas, otherwise they become permanently hooked
      */
     template<uint16_t PRIORITY = 0, typename Fn>
-    EVENT_HANDLE Hook(Fn func_ptr)
+    EVENT_HANDLE Hook(Fn &&func_ptr)
     VERIFY_TYPE(class_member_exclusion<Fn>() && is_same_arg_list<Fn>())
     {
       uint16_t priority = Ordered ? priority_++ : PRIORITY;
-      EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(func_ptr));
+      EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr));
       callList_[priority].emplace_back(Call<_Signature>(func_ptr, handle));
       return handle;
     }
@@ -448,10 +448,10 @@ class Event
      *      Returns handle to corresponding to the cluster of non-member functions
      */
     template<uint16_t PRIORITY = 0, typename ...Fns>
-    [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fns... func_ptrs)
+    [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fns&&... func_ptrs)
     VERIFY_TYPE(class_member_exclusion<Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>() && is_same_arg_list<Fns...>())
     {
-      PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
+      PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
       return MAKE_HANDLE(PRIORITY, ++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
@@ -515,10 +515,10 @@ class Event
      *      Pointer to non-member function to unhook
      */
     template<uint16_t PRIORITY = 0, typename Fn>
-    void Unhook(Fn func_ptr)
+    void Unhook(Fn &&func_ptr)
     VERIFY_TYPE(class_member_exclusion<Fn>())
     {
-      RemoveCall(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(func_ptr)));
+      RemoveCall(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr)));
     }
 
     /*!
@@ -599,7 +599,7 @@ class Event
      *      List of non-member functions to unhook from event
      */
     template<typename ...Fns>
-    void UnhookFunctions(Fns ...func_ptrs)
+    void UnhookFunctions(Fns&&... func_ptrs)
     VERIFY_TYPE(class_member_exclusion<Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>())
     {
       PACK_EXPAND(Unhook, func_ptrs)
