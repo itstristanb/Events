@@ -398,7 +398,7 @@ class Event
     VERIFY_TYPE(class_member_exclusion<Fn>() && is_same_arg_list<Fn>())
     {
       uint16_t priority = Ordered ? priority_++ : PRIORITY;
-      EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr));
+      EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(func_ptr));
       callList_[priority].emplace_back(Call<_Signature>(func_ptr, handle));
       return handle;
     }
