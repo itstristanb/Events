@@ -1,4 +1,4 @@
-﻿/*!
+/*!
  * \author Tristan Florian Bouchard
  * \file   Events.hpp
  * \data   4/20/2020
@@ -394,7 +394,7 @@ class Event
      *      NOTE: Must not be ignored when hooking lambdas, otherwise they become permanently hooked
      */
     template<uint16_t PRIORITY = 0, typename Fn>
-    EVENT_HANDLE Hook(Fn &&func_ptr)
+    EVENT_HANDLE Hook(Fn func_ptr)
     VERIFY_TYPE(class_member_exclusion<Fn>() && is_same_arg_list<Fn>())
     {
       uint16_t priority = Ordered ? priority_++ : PRIORITY;
@@ -448,10 +448,10 @@ class Event
      *      Returns handle to corresponding to the cluster of non-member functions
      */
     template<uint16_t PRIORITY = 0, typename ...Fns>
-    [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fns&&... func_ptrs)
+    [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fns... func_ptrs)
     VERIFY_TYPE(class_member_exclusion<Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>() && is_same_arg_list<Fns...>())
     {
-      PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
+      PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
       return MAKE_HANDLE(PRIORITY, ++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
@@ -642,7 +642,7 @@ class Event
     {
       size_t size = 0;
       for (auto &call_list : callList_)
-          size += call_list.second.size();
+        size += call_list.second.size();
       return size;
     }
 
@@ -758,8 +758,7 @@ class Event
       template<typename ...Args>
       void emplace_back(Args... args)
       {
-        bool added = this->emplace(args...).second;
-        assert(added && "ERROR : Duplicate function hooked to event with same priority");
+        assert(this->emplace(args...).second && "ERROR : Duplicate function hooked to event with same priority");
       }
     };
 
