@@ -157,7 +157,7 @@ struct Call
      *      Handle corresponding to member function
      */
     template<typename C, typename Fn>
-    Call(C class_ptr, Fn func_ptr, EVENT_HANDLE handle) : function(GetMethod(class_ptr, func_ptr)), handle(handle)
+    Call(C *class_ptr, Fn func_ptr, EVENT_HANDLE handle) : function(GetMethod(class_ptr, func_ptr)), handle(handle)
     {}
 
     /*!
@@ -287,9 +287,9 @@ class Event
     template<typename ...Fns>
     static constexpr bool class_member_exclusion()
     {
-      static_assert(sizeof ...(Fns) > 0, "Calling variadic function with no parameters");
-      static_assert(!(... || std::is_member_function_pointer_v<Fns>), "A callback in variadic list Fs... is a class member");
-      return true;
+        static_assert(sizeof ...(Fns) > 0, "Calling variadic function with no parameters");
+        static_assert(!(... || std::is_member_function_pointer_v<Fns>), "A callback in variadic list Fs... is a class member");
+        return true;
     }
 
     /*!
@@ -305,8 +305,8 @@ class Event
     template<typename ...Args>
     static constexpr bool invocable()
     {
-      static_assert(std::is_invocable_v<_Signature , Args...>, "Attempting to invoke event with differing arguments then the event function signature");
-      return true;
+        static_assert(std::is_invocable_v<_Signature , Args...>, "Attempting to invoke event with differing arguments then the event function signature");
+        return true;
     }
 
     /*!
@@ -325,9 +325,9 @@ class Event
     template<typename Invalid_Type, typename ...Types>
     static constexpr bool type_exclusion()
     {
-      static_assert(sizeof ...(Types) > 0, "Calling variadic function with no parameters");
-      static_assert(!(... || std::is_same_v<Invalid_Type, Types>), "Invalid Type contained in Types variadic list");
-      return true;
+        static_assert(sizeof ...(Types) > 0, "Calling variadic function with no parameters");
+        static_assert(!(... || std::is_same_v<Invalid_Type, Types>), "Invalid Type contained in Types variadic list");
+        return true;
     }
 
     /*!
@@ -347,10 +347,10 @@ class Event
     template<typename C, typename ...Fns>
     static constexpr bool class_member_inclusion()
     {
-      static_assert(std::is_class_v<C>, "Provided class pointer is not a class");
-      static_assert(sizeof ...(Fns) > 0, "Calling variadic function with no parameters");
-      static_assert((... && is_member_function_of<C, Fns>::value), "A callback in variadic list Fs... is not a non-static member of class C");
-      return true;
+        static_assert(std::is_class_v<C>, "Provided class pointer is not a class");
+        static_assert(sizeof ...(Fns) > 0, "Calling variadic function with no parameters");
+        static_assert((... && is_member_function_of<C, Fns>::value), "A callback in variadic list Fs... is not a non-static member of class C");
+        return true;
     }
 
     /*!
@@ -366,11 +366,11 @@ class Event
     template<typename ...Fns>
     static constexpr bool is_same_arg_list()
     {
-      static_assert((... && parameter_equivalents<_Signature , Fns>::value), "Attempted to hook a callback that does not have the same parameter list as the event");
-      return true;
+        static_assert((... && parameter_equivalents<_Signature , Fns>::value), "Attempted to hook a callback that does not have the same parameter list as the event");
+        return true;
     }
 
-  public:
+public:
     using _Signature = FunctionSignature;       //!< Function Signature
     using _Allocator = Allocator;               //!< Event allocator
     using _CallType  = Call<FunctionSignature>; //!< Type of the call wrapper
@@ -383,7 +383,7 @@ class Event
      *      NOTE: If you hook the same function with differing priorities, you must specify
      *      the priority, or use the handle when Unhooking
      *
-     * \tparam F
+     * \tparam Fn
      *      Type of function
      *
      * \param func_ptr
@@ -394,13 +394,40 @@ class Event
      *      NOTE: Must not be ignored when hooking lambdas, otherwise they become permanently hooked
      */
     template<uint16_t PRIORITY = 0, typename Fn>
-    EVENT_HANDLE Hook(Fn &&func_ptr)
+    EVENT_HANDLE Hook(Fn *func_ptr)
     VERIFY_TYPE(class_member_exclusion<Fn>() && is_same_arg_list<Fn>())
     {
-      uint16_t priority = Ordered ? priority_++ : PRIORITY;
-      EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr));
-      callList_[priority].emplace_back(Call<_Signature>(func_ptr, handle));
-      return handle;
+        uint16_t priority = Ordered ? priority_++ : PRIORITY;
+        EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(func_ptr));
+        callList_[priority].emplace_back(Call<_Signature>(func_ptr, handle));
+        return handle;
+    }
+
+    /*!
+     * \brief
+     *      Hooks a lambda function to the event system provided that the type of 'func_ptr'
+     *      matches that of 'FUNCTION_SIGNATURE'
+     *      NOTE: If you hook the same function with differing priorities, you must specify
+     *      the priority, or use the handle when Unhooking
+     *
+     * \tparam Fn
+     *      Type of function
+     *
+     * \param lambda
+     *      The lambda to hook
+     *
+     * \return
+     *      Returns a handle corresponding to the hooked function.
+     *      NOTE: Must not be ignored when hooking lambdas, otherwise they become permanently hooked
+     */
+    template<uint16_t PRIORITY = 0, typename Fn>
+    EVENT_HANDLE Hook(Fn &&lambda)
+    VERIFY_TYPE(class_member_exclusion<Fn>() && is_same_arg_list<Fn>())
+    {
+        uint16_t priority = Ordered ? priority_++ : PRIORITY;
+        EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&lambda));
+        callList_[priority].emplace_back(Call<_Signature>(lambda, handle));
+        return handle;
     }
 
     /*!
@@ -425,13 +452,13 @@ class Event
      *      Returns handle corresponding to non-static member function hooked
      */
     template<uint16_t PRIORITY = 0, typename C, typename Fn>
-    EVENT_HANDLE Hook(C &class_ref, Fn func_ptr)
+    EVENT_HANDLE Hook(C *class_ptr, Fn func_ptr)
     VERIFY_TYPE(class_member_inclusion<C, Fn>() && is_same_arg_list<Fn>())
     {
-      uint16_t priority = Ordered ? priority_++ : PRIORITY;
-      EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr));
-      callList_[priority].emplace_back(Call<_Signature>(&class_ref, func_ptr, handle));
-      return handle;
+        uint16_t priority = Ordered ? priority_++ : PRIORITY;
+        EVENT_HANDLE handle = MAKE_HANDLE(priority, POINTER_INT_CAST(class_ptr), POINTER_INT_CAST(func_ptr));
+        callList_[priority].emplace_back(Call<_Signature>(class_ptr, func_ptr, handle));
+        return handle;
     }
 
     /*!
@@ -451,8 +478,8 @@ class Event
     [[nodiscard]] EVENT_HANDLE HookFunctionCluster(Fns&&... func_ptrs)
     VERIFY_TYPE(class_member_exclusion<Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>() && is_same_arg_list<Fns...>())
     {
-      PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
-      return MAKE_HANDLE(PRIORITY, ++clusterHandle_, POINTER_INT_CAST(nullptr));
+        PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(&func_ptrs))))
+        return MAKE_HANDLE(PRIORITY, ++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
     /*!
@@ -475,11 +502,11 @@ class Event
      *      Returns handle to corresponding to the cluster of non-static member functions
      */
     template<uint16_t PRIORITY = 0, typename C, typename ...Fns>
-    [[nodiscard]] EVENT_HANDLE HookMethodCluster(C &class_ref, Fns... func_ptrs)
+    [[nodiscard]] EVENT_HANDLE HookMethodCluster(C *class_ptr, Fns... func_ptrs)
     VERIFY_TYPE(class_member_inclusion<C, Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>() && is_same_arg_list<Fns...>())
     {
-      PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(&class_ref, func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
-      return MAKE_HANDLE(PRIORITY, ++clusterHandle_, POINTER_INT_CAST(nullptr));
+        PACK_EXPAND(callList_[PRIORITY].emplace_back, Call<_Signature>(class_ptr, func_ptrs, MAKE_HANDLE(PRIORITY, clusterHandle_ + 1, POINTER_INT_CAST(func_ptrs))))
+        return MAKE_HANDLE(PRIORITY, ++clusterHandle_, POINTER_INT_CAST(nullptr));
     }
 
     /*!
@@ -499,9 +526,9 @@ class Event
     void Invoke(Args... args)
     VERIFY_TYPE(invocable<Args...>())
     {
-      for (auto &priority : callList_)
-        for (auto &call : priority.second)
-          call.function(args...);
+        for (auto &priority : callList_)
+            for (auto &call : priority.second)
+                call.function(args...);
     }
 
     /*!
@@ -513,12 +540,13 @@ class Event
      *
      * \param func_ptr
      *      Pointer to non-member function to unhook
+     *      Note: 'func_ptr' must not be a lambda
      */
     template<uint16_t PRIORITY = 0, typename Fn>
-    void Unhook(Fn &&func_ptr)
+    void Unhook(Fn func_ptr)
     VERIFY_TYPE(class_member_exclusion<Fn>())
     {
-      RemoveCall(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(&func_ptr)));
+        RemoveCall(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(nullptr), POINTER_INT_CAST(func_ptr)));
     }
 
     /*!
@@ -531,17 +559,17 @@ class Event
      * \tparam F
      *      Type of non-static member function
      *
-     * \param class_ref
-     *      Reference to user defined type that contains the non-static member function 'func_ptr'
+     * \param class_ptr
+     *      Address of the user defined type that contains the non-static member function 'func_ptr'
      *
      * \param func_ptr
      *      Pointer to non-static member function to unhook
      */
     template<uint16_t PRIORITY = 0, typename C, typename Fn>
-    void Unhook(C &class_ref, Fn func_ptr)
+    void Unhook(C *class_ptr, Fn func_ptr)
     VERIFY_TYPE(class_member_inclusion<C, Fn>())
     {
-      RemoveCall(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(func_ptr)));
+        RemoveCall(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(class_ptr), POINTER_INT_CAST(func_ptr)));
     }
 
     /*!
@@ -555,7 +583,7 @@ class Event
      */
     void Unhook(EVENT_HANDLE handle)
     {
-      RemoveCall(handle);
+        RemoveCall(handle);
     }
 
     /*!
@@ -567,7 +595,7 @@ class Event
      */
     void UnhookCluster(EVENT_HANDLE handle)
     {
-      RemoveCluster(handle);
+        RemoveCluster(handle);
     }
 
     /*!
@@ -578,14 +606,14 @@ class Event
      * \tparam C
      *      Type of user defined type
      *
-     * \param class_ref
-     *      Reference to class has non-static member functions hooked to event
+     * \param class_ptr
+     *      Address of the class has non-static member functions hooked to event
      */
     template<uint16_t PRIORITY = 0, typename C>
-    void UnhookClass(C &class_ref)
+    void UnhookClass(C *class_ptr)
     {
-      static_assert(std::is_class_v<C>, "Class pointer provided not a pointer to a class");
-      RemoveCluster(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(&class_ref), POINTER_INT_CAST(nullptr)));
+        static_assert(std::is_class_v<C>, "Class pointer provided not a pointer to a class");
+        RemoveCluster(MAKE_HANDLE(PRIORITY, POINTER_INT_CAST(class_ptr), POINTER_INT_CAST(nullptr)));
     }
 
     /*!
@@ -599,10 +627,10 @@ class Event
      *      List of non-member functions to unhook from event
      */
     template<typename ...Fns>
-    void UnhookFunctions(Fns&&... func_ptrs)
+    void UnhookFunctions(Fns ...func_ptrs)
     VERIFY_TYPE(class_member_exclusion<Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>())
     {
-      PACK_EXPAND(Unhook, func_ptrs)
+        PACK_EXPAND(Unhook, func_ptrs)
     }
 
     /*!
@@ -616,8 +644,8 @@ class Event
      * \tparam Fs
      *      List of non-static member function types
      *
-     * \param class_ref
-     *      Reference to class that contains the non-static member functions
+     * \param class_ptr
+     *      Address of the class that contains the non-static member functions
      *      to unhook
      *
      * \param func_ptrs
@@ -625,10 +653,10 @@ class Event
      *
      */
     template<typename C, typename ...Fns>
-    void UnhookMethods(C &class_ref, Fns ...func_ptrs)
+    void UnhookMethods(C *class_ptr, Fns ...func_ptrs)
     VERIFY_TYPE(class_member_inclusion<C, Fns...>() && type_exclusion<EVENT_HANDLE, Fns...>())
     {
-      PACK_EXPAND(Unhook, class_ref, func_ptrs)
+        PACK_EXPAND(Unhook, class_ptr, func_ptrs)
     }
 
     /*!
@@ -640,10 +668,10 @@ class Event
      */
     [[nodiscard]] size_t CallListSize() const
     {
-      size_t size = 0;
-      for (auto &call_list : callList_)
-        size += call_list.second.size();
-      return size;
+        size_t size = 0;
+        for (auto &call_list : callList_)
+            size += call_list.second.size();
+        return size;
     }
 
     /*!
@@ -652,11 +680,11 @@ class Event
      */
     void Clear()
     {
-      for (auto &call_list : callList_)
-        call_list.second.clear();
-      clusterHandle_ = 0;
+        for (auto &call_list : callList_)
+            call_list.second.clear();
+        clusterHandle_ = 0;
     }
-  private:
+private:
     struct USet; struct CallHash; // forward declare
 
     //! Type of priority to callback list
@@ -675,13 +703,13 @@ class Event
      */
     void RemoveCluster(EVENT_HANDLE handle)
     {
-      EVENT_HANDLE cluster = GET_CLUSTER(handle);
-      auto &call_list = callList_[GET_PRIORITY(handle)];
-      for (auto it = call_list.begin(); it != call_list.end();)
-        if (cluster == GET_CLUSTER(it->handle))
-          it = call_list.erase(it);
-        else
-          ++it;
+        EVENT_HANDLE cluster = GET_CLUSTER(handle);
+        auto &call_list = callList_[GET_PRIORITY(handle)];
+        for (auto it = call_list.begin(); it != call_list.end();)
+            if (cluster == GET_CLUSTER(it->handle))
+                it = call_list.erase(it);
+            else
+                ++it;
     }
 
     /*!
@@ -693,9 +721,9 @@ class Event
      */
     void RemoveCall(EVENT_HANDLE handle)
     {
-      auto &call_list = callList_[GET_PRIORITY(handle)];
-      auto call = std::find(call_list.begin(), call_list.end(), handle);
-      if (call != call_list.end()) call_list.erase(call);
+        auto &call_list = callList_[GET_PRIORITY(handle)];
+        auto call = std::find(call_list.begin(), call_list.end(), handle);
+        if (call != call_list.end()) call_list.erase(call);
     }
 
     /*!
@@ -723,20 +751,20 @@ class Event
      */
     struct CallHash
     {
-      /*!
-       * \brief
-       *      Function call operator
-       *
-       * \param call
-       *      Call to hash
-       *
-       * \return
-       *      Returns the handle of the call
-       */
-      EVENT_HANDLE operator()(const Call<_Signature>& call) const
-      {
-        return call.handle;
-      }
+        /*!
+         * \brief
+         *      Function call operator
+         *
+         * \param call
+         *      Call to hash
+         *
+         * \return
+         *      Returns the handle of the call
+         */
+        EVENT_HANDLE operator()(const Call<_Signature>& call) const
+        {
+            return call.handle;
+        }
     };
 
     /*!
@@ -745,22 +773,22 @@ class Event
      */
     struct USet : public std::unordered_set<Call<_Signature>, CallHash, std::equal_to<Call<_Signature>>, _Allocator>
     {
-      /*!
-       * \brief
-       *      Wrapper around emplace to work with std::vector
-       *
-       * \tparam Args
-       *      Argument types to the constructor of Call
-       *
-       * \param args
-       *      Arguments to the constructor of Call data type
-       */
-      template<typename ...Args>
-      void emplace_back(Args... args)
-      {
-        bool was_added = this->emplace(args...).second;
-        assert(was_added && "ERROR : Duplicate function hooked to event with same priority");
-      }
+        /*!
+         * \brief
+         *      Wrapper around emplace to work with std::vector
+         *
+         * \tparam Args
+         *      Argument types to the constructor of Call
+         *
+         * \param args
+         *      Arguments to the constructor of Call data type
+         */
+        template<typename ...Args>
+        void emplace_back(Args... args)
+        {
+            bool was_added = this->emplace(args...).second;
+            assert(was_added && "ERROR : Duplicate function hooked to event with same priority");
+        }
     };
 
     /*!
@@ -770,14 +798,14 @@ class Event
     template<typename, typename>
     struct is_member_function_of
     {
-      static constexpr bool value = false;
+        static constexpr bool value = false;
     };
 
     /*!
      * \brief
      *      Overload for non-static non-ellipsis member functions
      */
-    #define DEF_IS_MEMBER_FUNCTION_OF(CV_REF_NOEXCEPT_OPT) \
+#define DEF_IS_MEMBER_FUNCTION_OF(CV_REF_NOEXCEPT_OPT) \
       template<typename C, typename R, typename... Args> \
       struct is_member_function_of<C, R(C::*)(Args...) CV_REF_NOEXCEPT_OPT> \
       { \
@@ -788,7 +816,7 @@ class Event
      * \brief
      *     Overload for non-static ellipsis member functions
      */
-    #define DEF_IS_MEMBER_FUNCTION_OF_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
+#define DEF_IS_MEMBER_FUNCTION_OF_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
       template<typename C, typename R, typename... Args> \
       struct is_member_function_of<C, R(C::*)(Args..., ...) CV_REF_NOEXCEPT_OPT> \
       { \
@@ -839,7 +867,7 @@ class Event
      * \brief
      *      Overload for non-static non-ellipsis member function
      */
-    #define DEF_PARAMETER_EQUIVALENTS(CV_REF_NOEXCEPT_OPT) \
+#define DEF_PARAMETER_EQUIVALENTS(CV_REF_NOEXCEPT_OPT) \
     template<typename COMP, typename C, typename R, typename ...Args> \
     struct parameter_equivalents<COMP, R(C::*)(Args...) CV_REF_NOEXCEPT_OPT> \
     { static constexpr bool value = std::is_invocable_v<COMP, Args...>; };
@@ -848,7 +876,7 @@ class Event
      * \brief
      *      Overload for non-static ellipsis member function
      */
-    #define DEF_PARAMETER_EQUIVALENTS_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
+#define DEF_PARAMETER_EQUIVALENTS_ELLIPSIS(CV_REF_NOEXCEPT_OPT) \
     template<typename COMP, typename C, typename R, typename ...Args> \
     struct parameter_equivalents<COMP, R(C::*)(Args..., ...) CV_REF_NOEXCEPT_OPT> \
     { static constexpr bool value = std::is_invocable_v<COMP, Args...>; };
