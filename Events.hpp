@@ -758,7 +758,8 @@ class Event
       template<typename ...Args>
       void emplace_back(Args... args)
       {
-        assert(this->emplace(args...).second && "ERROR : Duplicate function hooked to event with same priority");
+        bool was_added = this->emplace(args...).second;
+        assert(was_added && "ERROR : Duplicate function hooked to event with same priority");
       }
     };
 
