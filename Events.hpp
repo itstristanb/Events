@@ -21,6 +21,8 @@
 #ifndef EVENTS_HPP
 #define EVENTS_HPP
 #pragma once
+#pragma warning(push)
+#pragma warning(disable : 4003)
 
 #include <unordered_set> // unordered_set
 #include <functional>    // function
@@ -902,3 +904,4 @@ private:
 };
 
 #endif
+#pragma warning(pop)
