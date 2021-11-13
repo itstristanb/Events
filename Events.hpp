@@ -80,6 +80,11 @@ struct EventHandle
     EventHandle() = default;
     EventHandle(const EventHandle& other) = default;
 
+    operator bool()
+    {
+        return identifier && function;
+    }
+
     template<typename I, typename F>
     EventHandle(uint16_t priority, I identifier, F function)
             : priority(priority),
@@ -125,7 +130,7 @@ private:
     /*!
      * \brief
      *   Mapping:
-     *                                           |  priority  |  identifier  |     function     |
+     *                                   |  priority  |       identifier      |     function     |
      *   if non-member function        = | [0, 65535] | FunctionIdentifier    | &function        |
      *   if lambda function            = | [0, 65535] | LambdaIdentifier      | &lambda          |
      *   if std::function              = | [0, 65535] | StdFunctionIdentifier | &std::function   |
@@ -166,8 +171,8 @@ namespace Internal
          */
          Call(std::function<R(Args...)> func, EventHandle handle)
             :  handle(handle),
-               function([f = std::move(func)](void*, Args ...args) mutable {
-                   f(args...);
+               function([func](void*, Args ...args) mutable {
+                 func(args...);
                })
         {
         }
@@ -179,7 +184,7 @@ namespace Internal
         template<typename Fn>
         Call(Fn func_ptr, EventHandle handle)
                 : handle(handle),
-                  function([&func_ptr](void*, Args ...args) mutable {
+                  function([func_ptr](void*, Args ...args) mutable {
                       func_ptr(args...);
                   })
         {
@@ -228,7 +233,7 @@ namespace Internal
         mutable EventHandle handle;         //!< Handle corresponding to the function
         mutable void* class_ptr = nullptr;  //!< A pointer to the class if the non-static member function constructor was used
     private:
-        std::function<void(void*)> function; //!< Function to call
+        std::function<void(void*, Args...)> function; //!< Function to call
     };
 }
 
@@ -309,9 +314,12 @@ public:
     using _Allocator = Allocator;                        //!< Event allocator
     using _CallType = Internal::Call<FunctionSignature>; //!< Type of the call wrapper
     static constexpr bool Ordered = KeepOrder;           //!< State of ordering
+
+    Event() = default;
+    ~Event() = default;
+
     Event(const Event& other) = delete;
     Event(Event&& other) = delete;
-    ~Event() = default;
 
     /*!
      * \brief
@@ -319,10 +327,7 @@ public:
      * \param bindTo
      *   Must be nullptr
      */
-    Event(std::nullptr_t bindTo)
-            : boundTo(bindTo)
-    {
-    }
+    Event(std::nullptr_t bindTo) { BindTo(bindTo); }
 
     /*!
      * \brief
@@ -332,10 +337,28 @@ public:
      *   The this pointer to the object this function is apart of
      */
     template<typename Bind>
-    Event(Bind* bindTo)
-            : boundTo(bindTo)
+    Event(Bind* bindTo) { BindTo(bindTo); }
+
+    /*!
+     * \brief
+     *   Binds a pointer to this event. Pass in the this pointer if in a class and not static
+     */
+    template<typename Bind>
+    void BindTo(Bind* bindTo)
     {
         static_assert(std::is_class_v<Bind>, "Bind must be a pointer to the object it is bound to");
+        boundTo = bindTo;
+        initialized_ = true;
+    }
+
+    /*!
+     * \brief
+     *   Binds nothing this event
+     */
+    void BindTo(std::nullptr_t bindTo)
+    {
+        boundTo = bindTo;
+        initialized_ = true;
     }
 
     /*!
@@ -350,6 +373,7 @@ public:
             return *this;
         callList_ = other.callList_;
         priority_ = other.priority_;
+        initialized_ = other.initialized_;
         if (boundTo != nullptr && other.boundTo != nullptr)
             ReplaceBound(other.boundTo);
         return *this;
@@ -370,8 +394,9 @@ public:
      *   IMPORTANT: Must not be ignored when hooking, otherwise it become permanently hooked
      */
     template<uint16_t PRIORITY = 0>
-    [nodiscard] EventHandle Hook(std::function<_Signature> func)
+    [[nodiscard]] EventHandle Hook(std::function<_Signature> func)
     {
+        AssertInitialized();
         uint16_t priority = Ordered ? priority_++ : PRIORITY;
         EventHandle handle(priority, EventHandle::StdFunctionIdentifier, func);
         callList_[priority].emplace_back(Internal::Call<_Signature>(func, handle));
@@ -393,9 +418,10 @@ public:
      *   IMPORTANT: Must not be ignored when hooking, otherwise it become permanently hooked
      */
     template<uint16_t PRIORITY = 0, typename Fn>
-    [nodiscard] EventHandle Hook(Fn&& lambda)
+    [[nodiscard]] EventHandle Hook(Fn&& lambda)
     VERIFY_TYPE(is_same_arg_list<Fn>())
     {
+        AssertInitialized();
         uint16_t priority = Ordered ? priority_++ : PRIORITY;
         EventHandle handle(priority, EventHandle::LambdaIdentifier, &lambda);
         callList_[priority].emplace_back(Internal::Call<_Signature>(lambda, handle));
@@ -421,6 +447,7 @@ public:
     EventHandle Hook(Fn* func_ptr)
     VERIFY_TYPE(class_exclusion<Fn>() && is_same_arg_list<Fn>())
     {
+        AssertInitialized();
         uint16_t priority = Ordered ? priority_++ : PRIORITY;
         EventHandle handle(priority, EventHandle::FunctionIdentifier, func_ptr);
         callList_[priority].emplace_back(Internal::Call<_Signature>(func_ptr, handle));
@@ -448,6 +475,7 @@ public:
     EventHandle Hook(C* class_ptr, Fn func_ptr)
     VERIFY_TYPE(class_inclusion<C, Fn>() && is_same_arg_list<Fn>())
     {
+        AssertInitialized();
         uint16_t priority = Ordered ? priority_++ : PRIORITY;
         EventHandle handle(priority, class_ptr, func_ptr);
         callList_[priority].emplace_back(Internal::Call<_Signature>(class_ptr, func_ptr, handle));
@@ -467,6 +495,7 @@ public:
     void Invoke(Args... args)
     VERIFY_TYPE(invocable<Args...>())
     {
+        AssertInitialized();
         for (auto& priority : callList_)
             for (auto& call : priority.second)
                 (call)(args...);
@@ -482,6 +511,7 @@ public:
     void Unhook(Fn* func_ptr)
     VERIFY_TYPE(class_exclusion<Fn>())
     {
+        AssertInitialized();
         RemoveCall(EventHandle(PRIORITY, EventHandle::FunctionIdentifier, func_ptr));
     }
 
@@ -497,6 +527,7 @@ public:
     void Unhook(C* class_ptr, Fn func_ptr)
     VERIFY_TYPE(class_inclusion<C, Fn>())
     {
+        AssertInitialized();
         RemoveCall(EventHandle(PRIORITY, class_ptr, func_ptr));
     }
 
@@ -508,6 +539,7 @@ public:
      */
     void Unhook(EventHandle handle)
     {
+        AssertInitialized();
         RemoveCall(handle);
     }
 
@@ -524,6 +556,7 @@ public:
     void UnhookClass(C* class_ptr)
     {
         static_assert(std::is_class_v<C>, "class_ptr must be a pointer to a class");
+        AssertInitialized();
         bool unhooked = false;
         EventHandle handle(0, class_ptr, 0);
         for (auto& call_list : callList_)
@@ -547,6 +580,7 @@ public:
      */
     [[nodiscard]] size_t CallListSize() const
     {
+        AssertInitialized();
         size_t size = 0;
         for (auto& call_list : callList_)
             size += call_list.second.size();
@@ -559,6 +593,7 @@ public:
      */
     void Clear()
     {
+        AssertInitialized();
         for (auto& call_list : callList_)
             call_list.second.clear();
     }
@@ -567,9 +602,19 @@ private:
     struct USet;
     struct CallHash; // forward declare
 
-    void* boundTo;                                //!< The object or it is bound to
+    void* boundTo = nullptr;                      //!< The object or it is bound to
     std::unordered_map<uint16_t, USet> callList_; //!< List of callbacks key=priority value=call_list
     uint16_t priority_ = 0;                       //!< Increases on each Hook* when KeepOrder is true
+    bool initialized_ = false;                    //!< Gets set to true if a non-default constructor is used
+
+    /*!
+     * \brief
+     *   Checks if the event has been bound or constructed via non-default constructor
+     */
+    inline void AssertInitialized()
+    {
+        assert(initialized_ && "Failed to initialize event. Use non-default constructor or call Bind function before use");
+    }
 
     /*!
      * \brief
@@ -580,9 +625,10 @@ private:
      */
     void RemoveCall(EventHandle handle)
     {
+        AssertInitialized();
         auto& call_list = callList_[handle.GetPriority()];
         auto call = std::find(call_list.begin(), call_list.end(), handle);
-        assert(call != call_list.end() && "ERROR : Attempting to unhook call count not be found or does not exist. Check the priority or if it was previously unhooked");
+        assert(call != call_list.end() && "ERROR : Attempting to unhook call cannot be found or does not exist. Check the priority or if it was previously unhooked");
         call_list.erase(call);
     }
 
