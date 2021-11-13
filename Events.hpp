@@ -31,19 +31,6 @@
 #include <vector>        // vector
 #include <unordered_map> // unordered_map
 
-// TODO: Assert when unhooking an event that is not found
-// TODO: Static Assert when hooking or unhooking a class pointer in the hook or unhook method
-// TODO: Support std::function/anything callable
-// TODO: Ensure no data loss for handles
-// TODO: Bind pointers to the event (must be class pointer if not null)
-// TODO: Delete copy constructor/move constructor
-// TODO: Add assignment operation that replaces the this pointer calls
-// TODO [maybe]: Remove clusters?
-// TODO: Wrap things like the call in an internal namespace
-// TODO: Reformat comments and make sure they are up to date
-// TODO: Have it so that the call stores raw pointers to the class and member function, and split the signature into the return value and arguments
-// TODO: Maybe add it where you can update the bounded function
-
 //! For type checking with a cleaner syntax
 #define VERIFY_TYPE noexcept
 
@@ -543,9 +530,6 @@ public:
         RemoveCall(handle);
     }
 
-    // TODO: See you can call the raw *
-    // TODO: Maybe just use void pointers for the event handle?
-
     /*!
      * \brief
      *   Unhooks all non-static member functions hooked with the user defined type
@@ -573,10 +557,9 @@ public:
 
     /*!
      * \brief
-     *      Getter for how many callbacks are stored within this event
-     *
+     *   Getter for how many callbacks are stored within this event
      * \return
-     *      Returns number of callbacks hooked to this event
+     *   Returns number of callbacks hooked to this event
      */
     [[nodiscard]] size_t CallListSize() const
     {
@@ -618,10 +601,9 @@ private:
 
     /*!
      * \brief
-     *      Unhooks a handle from the call list
-     *
+     *   Unhooks a handle from the call list
      * \param handle
-     *      Handle to the function to unhook
+     *   Handle to the function to unhook
      */
     void RemoveCall(EventHandle handle)
     {
@@ -647,7 +629,7 @@ private:
 
     /*!
      * \brief
-     *      Hash functor used in unordered_set
+     *   Hash functor used in unordered_set
      */
     struct CallHash
     {
@@ -665,7 +647,7 @@ private:
 
     /*!
      * \brief
-     *      Wrapper around an unordered_set to standard the emplace_back function
+     *   Wrapper around an unordered_set to standard the emplace_back function
      */
     struct USet : public std::unordered_set<Internal::Call<_Signature>, CallHash, std::equal_to<Internal::Call<_Signature>>, _Allocator>
     {
@@ -685,7 +667,7 @@ private:
 
     /*!
      * \brief
-     *      Base case, not a member function of a class
+     *   Base case, not a member function of a class
      */
     template<typename, typename>
     struct is_member_function_of
@@ -695,7 +677,7 @@ private:
 
     /*!
      * \brief
-     *      Generates all overloads for member functions and their decorators
+     *   Generates all overloads for member functions and their decorators
      */
 #define DEF_IS_MEMBER_FUNCTION_OF(CV_REF_NOEXCEPT_OPT) \
       template<typename C, typename R, typename... Args> \
@@ -709,7 +691,7 @@ private:
 
     /*!
      * \brief
-     *      Base case, is a lambda, check if it can be constructed as an std::function
+     *   Base case, is a lambda, check if it can be constructed as an std::function
      */
     template<typename COMP, typename Fn>
     struct parameter_equivalents
@@ -719,7 +701,7 @@ private:
 
     /*!
      * \brief
-     *     Non-member function overload to see if COMP can be invoked with arguments Args
+     *   Non-member function overload to see if COMP can be invoked with arguments Args
      */
     template<typename COMP, typename R, typename ...Args>
     struct parameter_equivalents<COMP, R(*)(Args...)>
@@ -729,8 +711,7 @@ private:
 
     /*!
      * \brief
-     *      Generates all overloads to check if COMP can be invoked with
-     *      the arguments of Args
+     *   Generates all overloads to check if COMP can be invoked with the arguments of Args
      */
 #define DEF_PARAMETER_EQUIVALENTS(CV_REF_NOEXCEPT_OPT) \
     template<typename COMP, typename C, typename R, typename ...Args> \
