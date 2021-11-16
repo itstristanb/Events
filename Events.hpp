@@ -381,7 +381,7 @@ public:
      *   IMPORTANT: Must not be ignored when hooking, otherwise it become permanently hooked
      */
     template<uint16_t PRIORITY = 0>
-    [[nodiscard]] EventHandle Hook(std::function<_Signature> func)
+    EventHandle Hook(std::function<_Signature> func)
     {
         AssertInitialized();
         uint16_t priority = Ordered ? priority_++ : PRIORITY;
@@ -405,7 +405,7 @@ public:
      *   IMPORTANT: Must not be ignored when hooking, otherwise it become permanently hooked
      */
     template<uint16_t PRIORITY = 0, typename Fn>
-    [[nodiscard]] EventHandle Hook(Fn&& lambda)
+    EventHandle Hook(Fn&& lambda)
     VERIFY_TYPE(is_same_arg_list<Fn>())
     {
         AssertInitialized();
