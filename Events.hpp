@@ -63,7 +63,6 @@
  */
 struct EventHandle
 {
-    // TODO: Maybe store the actual pointers for the call to use?
     EventHandle() = default;
     EventHandle(const EventHandle& other) = default;
 
@@ -75,8 +74,8 @@ struct EventHandle
     template<typename I, typename F>
     EventHandle(uint16_t priority, I identifier, F function)
             : priority(priority),
-              identifier(POINTER_INT_CAST(identifier)),
-              function(POINTER_INT_CAST(function))
+              identifier(POINTER_VALUE_CAST(identifier)),
+              function(POINTER_VALUE_CAST(function))
     {
     }
 
@@ -136,9 +135,9 @@ private:
      *   The pointer's address as an uint64_t
      */
     template<typename T>
-    static constexpr uint64_t POINTER_INT_CAST(T t)
+    static constexpr uint64_t POINTER_VALUE_CAST(T t)
     {
-        return reinterpret_cast<uint64_t>(*reinterpret_cast<void**>(&t));
+        return std::is_pointer_v<T> ? reinterpret_cast<uint64_t>(*reinterpret_cast<void**>(&t)) : t;
     }
 };
 
