@@ -137,7 +137,10 @@ private:
     template<typename T>
     static constexpr uint64_t POINTER_VALUE_CAST(T t)
     {
-        return std::is_pointer_v<T> ? reinterpret_cast<uint64_t>(*reinterpret_cast<void**>(&t)) : t;
+        if constexpr (std::is_integral_v<T>)
+            return static_cast<uint64_t>(t);
+        else
+            return reinterpret_cast<uint64_t>(*reinterpret_cast<void**>(&t));
     }
 };
 
