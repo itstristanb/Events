@@ -3,7 +3,7 @@
  * \file   Events.hpp
  * \data   4/20/2020
  * \brief  This file contains the implementation for a templated C++ Event system. See README.md for more info
- * \par    link: https://github.com/BeOurQuest/Events.git
+ * \par    link: https://github.com/itstristanb/Events.git
  */
 
 //  /$$$$$$$$ /$$    /$$ /$$$$$$$$ /$$   /$$ /$$$$$$$$  /$$$$$$       /$$   /$$ /$$$$$$$  /$$$$$$$
